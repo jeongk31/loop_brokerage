@@ -23,20 +23,6 @@ def login():
     return render_template("login.html", error=error)
 
 
-@bp.route("/healthz")
-def healthz():
-    """Diagnostic: shows what config the container sees (no secret values)."""
-    from ..config import Config
-    url = Config.SUPABASE_URL or ""
-    return {
-        "supabase_url_set": bool(url),
-        "supabase_url_preview": url.replace("https://", "")[:24],
-        "service_key_set": bool(Config.SUPABASE_SERVICE_KEY),
-        "service_key_len": len(Config.SUPABASE_SERVICE_KEY or ""),
-        "secret_key_custom": Config.SECRET_KEY != "dev-insecure-change-me",
-    }
-
-
 @bp.route("/logout")
 def logout():
     logout_user()

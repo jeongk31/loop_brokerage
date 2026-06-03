@@ -40,12 +40,12 @@ def main() -> None:
     client = get_client()
 
     txs = client.table("transactions").select(
-        "ticker, trade_date, side, quantity, price, currency").range(0, 999).execute().data or []
+        "platform_id, ticker, trade_date, side, quantity, price, currency").range(0, 999).execute().data or []
     # paginate (defensive; 713 < 1000 so one page, but keep robust)
     start = 1000
     while True:
         page = client.table("transactions").select(
-            "ticker, trade_date, side, quantity, price, currency").range(start, start + 999).execute().data or []
+            "platform_id, ticker, trade_date, side, quantity, price, currency").range(start, start + 999).execute().data or []
         if not page:
             break
         txs += page
@@ -58,24 +58,25 @@ def main() -> None:
     axis = pd.date_range(earliest, pd.Timestamp.today().normalize(), freq="D")
     fx = fx_series(axis)
 
-    tickers = sorted({t["ticker"] for t in txs})
-    print(f"Reconstructing {len(axis)} days across {len(tickers)} tickers …")
+    # Group per (platform, ticker) — same granularity as derive_holdings, so the
+    # long-only clamp on an oversell matches and the latest day equals the live total.
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for t in txs:
+        groups[(t["platform_id"], t["ticker"])].append(t)
+    print(f"Reconstructing {len(axis)} days across {len(groups)} positions …")
 
     total = pd.Series(0.0, index=axis)
-    skipped = []
+    skipped = set()
     span_days = (axis[-1] - axis[0]).days + 5
-    for tk in tickers:
-        # signed share changes on trade dates -> cumulative held qty (LONG ONLY:
-        # clamp at zero so an oversell can't drive the position negative)
+    price_cache: dict = {}
+    for (pid, tk), trades in groups.items():
         changes = pd.Series(0.0, index=axis)
-        for t in txs:
-            if t["ticker"] != tk:
-                continue
+        for t in trades:
             d = pd.Timestamp(t["trade_date"])
             if d in changes.index:
                 changes.loc[d] += float(t["quantity"]) * (1 if t["side"] == "buy" else -1)
-        running = 0.0
-        held = []
+        running, held = 0.0, []        # LONG ONLY: clamp at zero per platform+ticker
         for ch in changes.values:
             running = max(0.0, running + ch)
             held.append(running)
@@ -83,16 +84,20 @@ def main() -> None:
         if qty.abs().max() < 1e-9:
             continue
 
-        hist = prices.history(tk, days=span_days)
-        if not hist:
-            skipped.append(tk)
+        if tk not in price_cache:
+            hist = prices.history(tk, days=span_days)
+            price_cache[tk] = (pd.Series({pd.Timestamp(p["date"]): p["close"] for p in hist})
+                               .reindex(axis).ffill()) if hist else None
+        close = price_cache[tk]
+        if close is None:
+            skipped.add(tk)
             continue
-        close = pd.Series({pd.Timestamp(p["date"]): p["close"] for p in hist}).reindex(axis).ffill()
 
         val = qty * close
         if prices.native_currency(tk) == "USD":
             val = val * fx
         total = total.add(val.fillna(0), fill_value=0)
+    skipped = sorted(skipped)
 
     series = [(d.date().isoformat(), round(float(v), 2)) for d, v in total.items() if abs(v) > 0]
     print(f"  {len(series)} non-zero days. latest: {series[-1] if series else None}")
