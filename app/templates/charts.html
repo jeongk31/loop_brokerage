@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}차트 · LOOP 증권{% endblock %}
+{% block content %}
+<h1 class="page-title">차트</h1>
+
+{% if hist_values %}
+<div class="card" style="margin-bottom:16px">
+  <h2 class="chart-title">총 자산 추이 (원)</h2>
+  <canvas id="historyChart" height="150"></canvas>
+</div>
+{% endif %}
+
+<div class="chart-grid">
+  <div class="card">
+    <h2 class="chart-title">플랫폼별 비중</h2>
+    <canvas id="platformChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <h2 class="chart-title">국내 / 해외 비중</h2>
+    <canvas id="currencyChart" height="220"></canvas>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2 class="chart-title">상위 보유 종목 (평가금액, 원)</h2>
+  <canvas id="topChart" height="160"></canvas>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="section-head">
+    <h2 class="chart-title">종목 가격 추이</h2>
+    <select id="tickerSelect" class="select-inline">
+      {% for t in tickers %}<option value="{{ t.ticker }}">{{ t.name }} ({{ t.ticker }})</option>{% endfor %}
+    </select>
+  </div>
+  <canvas id="priceChart" height="160"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const PLAT = {{ by_platform|tojson }};
+const CCY  = {{ by_currency|tojson }};
+const TOP_LABELS = {{ top_labels|tojson }};
+const TOP_VALUES = {{ top_values|tojson }};
+const COLORS = ['#2563eb','#dc2626','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#65a30d','#9333ea','#0d9488'];
+
+const HIST_DATES = {{ hist_dates|tojson }};
+const HIST_VALUES = {{ hist_values|tojson }};
+if (HIST_VALUES.length && document.getElementById('historyChart')) {
+  new Chart(document.getElementById('historyChart'), {
+    type:'line',
+    data:{labels:HIST_DATES, datasets:[{label:'총 자산(원)', data:HIST_VALUES,
+      borderColor:'#16a34a', backgroundColor:'rgba(22,163,74,0.08)', fill:true, pointRadius:0, tension:0.1}]},
+    options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{maxTicksLimit:10}}}}
+  });
+}
+
+new Chart(document.getElementById('platformChart'), {
+  type:'doughnut',
+  data:{labels:PLAT.map(p=>p[0]), datasets:[{data:PLAT.map(p=>Math.round(p[1])), backgroundColor:COLORS}]},
+  options:{plugins:{legend:{position:'bottom'}}}
+});
+new Chart(document.getElementById('currencyChart'), {
+  type:'doughnut',
+  data:{labels:CCY.map(p=>p[0]), datasets:[{data:CCY.map(p=>Math.round(p[1])), backgroundColor:COLORS}]},
+  options:{plugins:{legend:{position:'bottom'}}}
+});
+new Chart(document.getElementById('topChart'), {
+  type:'bar',
+  data:{labels:TOP_LABELS, datasets:[{label:'평가금액(원)', data:TOP_VALUES, backgroundColor:'#2563eb'}]},
+  options:{indexAxis:'y', plugins:{legend:{display:false}}}
+});
+
+const priceCtx = document.getElementById('priceChart');
+let priceChart;
+function loadPrice(ticker){
+  fetch('/api/price-history?ticker='+encodeURIComponent(ticker)+'&days=365')
+    .then(r=>r.json()).then(d=>{
+      const labels=d.points.map(p=>p.date), data=d.points.map(p=>p.close);
+      if(priceChart) priceChart.destroy();
+      priceChart=new Chart(priceCtx,{type:'line',
+        data:{labels, datasets:[{label:ticker, data, borderColor:'#2563eb', pointRadius:0, tension:0.1}]},
+        options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{maxTicksLimit:8}}}}});
+    });
+}
+const sel=document.getElementById('tickerSelect');
+if(sel){ loadPrice(sel.value); sel.addEventListener('change',()=>loadPrice(sel.value)); }
+</script>
+{% endblock %}

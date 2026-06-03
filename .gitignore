@@ -1,0 +1,20 @@
+# Secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Local DBs / misc
+*.db
+*.sqlite3
+
+# Personal financial data (imported into Supabase already; not needed at runtime)
+STARTING_DATA/

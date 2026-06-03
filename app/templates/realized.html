@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}실현손익 · LOOP 증권{% endblock %}
+{% block content %}
+<h1 class="page-title">실현손익</h1>
+
+<div class="cards">
+  <div class="card stat">
+    <div class="stat-label">실현손익 합계 (KRW 환산)</div>
+    <div class="stat-value {{ 'up' if realized.total_krw >= 0 else 'down' }}">{{ realized.total_krw|signed }} 원</div>
+    <div class="stat-sub muted">매도 시점 평균단가 대비 (이동평균법)</div>
+  </div>
+  {% for ccy, v in realized.by_currency.items() %}
+  <div class="card stat">
+    <div class="stat-label">{{ '국내 (KRW)' if ccy == 'KRW' else '해외 (USD)' }} 실현손익</div>
+    <div class="stat-value {{ 'up' if v >= 0 else 'down' }}">
+      {{ v|signed(0 if ccy=='KRW' else 2) }} {{ ccy }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="section">
+  <div class="section-head"><h2>증권사별 실현손익 (KRW)</h2></div>
+  <div class="cards">
+    {% for name, v in realized.by_platform %}
+    <div class="card stat">
+      <div class="stat-label">{{ name }}</div>
+      <div class="stat-value {{ 'up' if v >= 0 else 'down' }}" style="font-size:1.1rem">{{ v|signed }} 원</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>종목별 실현손익</h2></div>
+  {% if realized.rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>증권사</th><th>종목</th><th class="num">실현손익</th><th class="num">KRW 환산</th></tr></thead>
+      <tbody>
+        {% for r in realized.rows|reverse %}
+        {% set dec = 0 if r.currency == 'KRW' else 2 %}
+        <tr>
+          <td>{{ r.platform }}</td>
+          <td>{{ r.name }} <span class="muted">{{ r.ticker }}</span></td>
+          <td class="num {{ 'up' if r.realized >= 0 else 'down' }}">{{ r.realized|signed(dec) }} {{ r.currency }}</td>
+          <td class="num {{ 'up' if r.realized_krw >= 0 else 'down' }}">{{ r.realized_krw|signed }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">실현된 매도 손익이 없습니다.</p>{% endif %}
+</section>
+{% endblock %}

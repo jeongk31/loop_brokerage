@@ -1,0 +1,11 @@
+Flask==3.0.0
+Flask-Cors==4.0.0
+python-dotenv==1.0.0
+supabase==2.10.0
+yfinance==0.2.56
+pykrx==1.2.6
+pandas==2.3.3
+lxml==4.9.3
+PyMuPDF==1.27.2.2
+gunicorn==21.2.0
+Werkzeug==3.0.1

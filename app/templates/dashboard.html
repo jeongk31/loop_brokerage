@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}대시보드 · LOOP 증권{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">대시보드</h1>
+  {% if is_admin %}
+  <form method="post" action="{{ url_for('holdings.refresh_prices') }}">
+    <button class="btn" type="submit">↻ 시세 새로고침</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if summary.any_stale %}
+<div class="flash flash-error">일부 종목의 시세가 없습니다. {% if is_admin %}‘시세 새로고침’을 눌러 주세요.{% endif %}</div>
+{% endif %}
+
+<div class="cards">
+  <div class="card stat hero">
+    <div class="stat-label">총 자산</div>
+    <div class="stat-value">₩{{ total_assets|num }}</div>
+    <div class="hero-rows">
+      <div><span>📈 주식</span><span>₩{{ summary.total_value_krw|num }}</span></div>
+      <div><span>💵 현금</span><span>₩{{ cash.total_krw|num }}{% if cash.by_currency %} <span class="muted" style="font-weight:500">({% for ccy, amt in cash.by_currency.items() %}{{ ccy }} {{ amt|num(0 if ccy=='KRW' else 2) }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}</span></div>
+    </div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">평가손익 (미실현)</div>
+    <div class="stat-value {{ 'up' if summary.total_pl_krw >= 0 else 'down' }}">
+      {{ summary.total_pl_krw|signed }}</div>
+    <div class="stat-sub {{ 'up' if (summary.return_pct or 0) >= 0 else 'down' }}">
+      수익률 {{ summary.return_pct|pct }}</div>
+  </div>
+  {% if is_admin %}
+  <div class="card stat">
+    <div class="stat-label">실현손익 (매도 누적)</div>
+    <div class="stat-value {{ 'up' if realized.total_krw >= 0 else 'down' }}">
+      {{ realized.total_krw|signed }}</div>
+    <div class="stat-sub muted"><a class="link" href="{{ url_for('realized.index') }}">상세 보기 →</a></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if family_overview %}
+<section class="section">
+  <div class="section-head"><h2>가족</h2></div>
+  <div class="cards">
+    {% for m in family_overview %}
+    <div class="card">
+      <div class="section-head" style="margin-bottom:10px">
+        <h3 class="chart-title" style="margin:0">👤 {{ m.name }}</h3>
+        <span style="font-weight:750">₩{{ m.total|num }}</span>
+      </div>
+      <div class="mini-wrap">
+      <table class="mini">
+        {% for h in m.holdings %}
+        <tr>
+          <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span></td>
+          <td class="num">{{ h.quantity|num(2) }}주</td>
+          <td class="num">₩{{ h.value_krw|num }}</td>
+          <td class="num {{ 'up' if (h.return_pct or 0) >= 0 else 'down' }}">{{ h.return_pct|pct }}</td>
+        </tr>
+        {% endfor %}
+        {% if m.cash.total_krw %}
+        <tr><td>💵 현금</td>
+          <td class="num muted" colspan="2">{% for ccy, amt in m.cash.by_currency.items() %}{{ ccy }} {{ amt|num(0 if ccy=='KRW' else 2) }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+          <td class="num">₩{{ m.cash.total_krw|num }}</td></tr>
+        {% endif %}
+      </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="chart-grid">
+  <div class="card">
+    <h2 class="chart-title">{% if hist_values %}총 자산 추이{% elif is_admin %}플랫폼별 비중{% else %}총 자산 추이{% endif %}</h2>
+    {% if hist_values %}<canvas id="histChart" height="200"></canvas>
+    {% elif is_admin %}<canvas id="platChart2" height="200"></canvas>
+    {% else %}<p class="muted" style="padding:20px 0">시세 데이터가 아직 없습니다.</p>{% endif %}
+  </div>
+  <div class="card">
+    {% if is_admin %}
+    <div class="section-head" style="margin-bottom:12px">
+      <h2 class="chart-title" style="margin:0">자산 배분</h2>
+      <div class="seg">
+        <button class="seg-btn active" data-alloc="platform">증권사별</button>
+        <button class="seg-btn" data-alloc="ticker">종목별</button>
+        <button class="seg-btn" data-alloc="market">시장별</button>
+      </div>
+    </div>
+    {% else %}
+    <h2 class="chart-title">자산 배분 (종목별 · 현금 포함)</h2>
+    {% endif %}
+    <canvas id="allocChart" height="200"></canvas>
+  </div>
+</div>
+
+<div class="page-head" style="margin-top:26px">
+  <h2 style="margin:0">보유 종목</h2>
+  {% if is_admin %}<a class="btn btn-primary" href="{{ url_for('holdings.new') }}">+ 종목</a>{% endif %}
+</div>
+
+<div class="filter-bar">
+  {% if owners|length > 1 %}
+  <div class="filter-group fg-member">
+    <span class="filter-label">👥 구성원</span>
+    <div class="seg" id="ownerSeg">
+      <button class="seg-btn active" data-owner="__all">전체</button>
+      {% for o in owners %}<button class="seg-btn" data-owner="{{ o }}">{{ o }}</button>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% if is_admin %}
+  <div class="filter-group fg-broker">
+    <span class="filter-label">🏦 증권사</span>
+    <div class="seg" id="platSeg">
+      <button class="seg-btn active" data-plat="__all">전체</button>
+      {% for p in plats_present %}<button class="seg-btn" data-plat="{{ p }}">{{ p }}</button>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if holdings_flat %}
+<div class="table-wrap">
+  <table id="holdTable">
+    <thead>
+      <tr>
+        {% if is_admin %}<th>소유자</th>{% endif %}
+        <th>증권사</th><th>종목</th>
+        <th class="num">보유수량</th><th class="num">평균단가</th><th class="num">현재가</th>
+        <th class="num">평가금액</th><th class="num">평가손익</th><th class="num">수익률</th>
+        {% if is_admin %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holdings_flat %}
+      {% set dec = 0 if h.currency == 'KRW' else 2 %}
+      {% set owner = (h.users.display_name if h.users else '?') %}
+      {% set plat = (h.platforms.name if h.platforms else '기타') %}
+      <tr data-owner="{{ owner }}" data-plat="{{ plat }}">
+        {% if is_admin %}<td>{{ owner }}</td>{% endif %}
+        <td>{{ plat }}</td>
+        <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span>
+          {% if h.is_family_shared %}<span class="badge shared">공유</span>{% endif %}</td>
+        <td class="num">{{ h.quantity|num(4) }}</td>
+        <td class="num">{{ h.avg_cost|num(dec) }}</td>
+        <td class="num">{% if h.current_price is not none %}{{ h.current_price|num(dec) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ h.value|num(dec) }} <span class="muted">{{ h.currency }}</span></td>
+        <td class="num {{ 'up' if (h.pl or 0) >= 0 else 'down' }}">{{ h.pl|signed(dec) }}</td>
+        <td class="num {{ 'up' if (h.return_pct or 0) >= 0 else 'down' }}">{{ h.return_pct|pct }}</td>
+        {% if is_admin %}
+        <td class="row-actions">
+          <a class="link" href="{{ url_for('holdings.edit', holding_id=h.id) }}">수정</a>
+          <form method="post" action="{{ url_for('holdings.delete', holding_id=h.id) }}"
+                onsubmit="return confirm('삭제하시겠습니까?');">
+            <button class="link danger" type="submit">삭제</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">표시할 보유 종목이 없습니다.</p>
+{% endif %}
+
+<section class="section">
+  <div class="section-head">
+    <h2>최근 거래</h2>
+    <a class="link" href="{{ url_for('transactions.list_view') }}">전체 보기 →</a>
+  </div>
+  {% if recent_tx %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>거래일</th><th>종목</th><th>구분</th><th class="num">수량</th><th class="num">단가</th></tr></thead>
+      <tbody>
+        {% for t in recent_tx %}
+        <tr>
+          <td>{{ t.trade_date }}</td>
+          <td>{{ t.name }} <span class="muted">{{ t.ticker }}</span></td>
+          <td><span class="badge {{ 'buy' if t.side == 'buy' else 'sell' }}">{{ '매수' if t.side == 'buy' else '매도' }}</span></td>
+          <td class="num">{{ t.quantity|num(4) }}</td>
+          <td class="num">{{ t.price|num }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">아직 거래 내역이 없습니다.</p>{% endif %}
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const COLORS = ['#4f46e5','#e11d48','#16a34a','#d97706','#0891b2','#7c3aed','#db2777','#65a30d','#0d9488','#f59e0b','#94a3b8'];
+const PLAT = {{ summary.by_platform|tojson }};
+const HIST_D = {{ hist_dates|tojson }};
+const HIST_V = {{ hist_values|tojson }};
+const ALLOC = {
+  platform: {{ alloc_platform|tojson }},
+  ticker:   {{ alloc_ticker|tojson }},
+  market:   {{ alloc_market|tojson }},
+};
+
+if (HIST_V.length) {
+  new Chart(document.getElementById('histChart'), {
+    type:'line',
+    data:{labels:HIST_D, datasets:[{data:HIST_V, borderColor:'#4f46e5',
+      backgroundColor:'rgba(79,70,229,.10)', fill:true, pointRadius:0, borderWidth:2, tension:.15}]},
+    options:{plugins:{legend:{display:false}}, scales:{x:{ticks:{maxTicksLimit:7}},
+      y:{ticks:{callback:v=>'₩'+(v/1e6).toFixed(0)+'M'}}}}
+  });
+} else if (document.getElementById('platChart2')) {
+  new Chart(document.getElementById('platChart2'), {type:'doughnut',
+    data:{labels:PLAT.map(p=>p[0]), datasets:[{data:PLAT.map(p=>Math.round(p[1])), backgroundColor:COLORS}]},
+    options:{plugins:{legend:{position:'bottom'}}}});
+}
+
+const allocChart = new Chart(document.getElementById('allocChart'), {type:'doughnut',
+  data:{labels:[], datasets:[{data:[], backgroundColor:COLORS, borderWidth:2}]},
+  options:{cutout:'62%', plugins:{legend:{position:'bottom'},
+    tooltip:{callbacks:{label:c=>' '+c.label+': ₩'+c.raw.toLocaleString()}}}}});
+function setAlloc(key){
+  const rows = ALLOC[key] || [];
+  allocChart.data.labels = rows.map(r=>r[0]);
+  allocChart.data.datasets[0].data = rows.map(r=>Math.round(r[1]));
+  allocChart.update();
+}
+setAlloc('{{ "platform" if is_admin else "ticker" }}');
+document.querySelectorAll('[data-alloc]').forEach(b=>b.addEventListener('click',()=>{
+  b.parentNode.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  setAlloc(b.dataset.alloc);
+}));
+
+// 보유종목 filters: 구성원 + 증권사 (both applied together)
+let fOwner = '__all', fPlat = '__all';
+function applyHoldFilter(){
+  document.querySelectorAll('#holdTable tbody tr').forEach(tr=>{
+    const okO = (fOwner === '__all' || tr.dataset.owner === fOwner);
+    const okP = (fPlat === '__all' || tr.dataset.plat === fPlat);
+    tr.style.display = (okO && okP) ? '' : 'none';
+  });
+}
+function wireSeg(id, set){
+  const seg = document.getElementById(id);
+  if (!seg) return;
+  seg.querySelectorAll('.seg-btn').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); set(b); applyHoldFilter();
+  }));
+}
+wireSeg('ownerSeg', b=>fOwner=b.dataset.owner);
+wireSeg('platSeg', b=>fPlat=b.dataset.plat);
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ '종목 수정' if holding else '종목 추가' }} · LOOP 증권{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ '보유 종목 수정' if holding else '보유 종목 추가' }}</h1>
+
+<form method="post" class="card form">
+  <label>소유자
+    <select name="user_id" required>
+      {% for u in users %}
+      <option value="{{ u.id }}" {{ 'selected' if holding and holding.user_id == u.id }}>
+        {{ u.display_name }}{% if u.role == 'admin' %} (관리자){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>증권사
+    <select name="platform_id">
+      <option value="">선택 안 함</option>
+      {% for p in platforms %}
+      <option value="{{ p.id }}" {{ 'selected' if holding and holding.platform_id == p.id }}>
+        {{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <div class="ticker-field">
+    <label>종목 검색
+      <input type="text" id="ticker-search" placeholder="삼성, 하이닉스, AAPL …"
+             autocomplete="off">
+    </label>
+    <ul id="ticker-results" class="ac-results"></ul>
+  </div>
+
+  <div class="grid-2">
+    <label>티커
+      <input type="text" name="ticker" id="ticker" required
+             value="{{ holding.ticker if holding else '' }}">
+    </label>
+    <label>종목명
+      <input type="text" name="name" id="name" required
+             value="{{ holding.name if holding else '' }}">
+    </label>
+  </div>
+
+  <div class="grid-2">
+    <label>보유수량
+      <input type="number" name="quantity" step="any" min="0" required
+             value="{{ holding.quantity if holding else '' }}">
+    </label>
+    <label>평균단가
+      <input type="number" name="avg_cost" step="any" min="0" required
+             value="{{ holding.avg_cost if holding else '' }}">
+    </label>
+  </div>
+
+  <label class="checkbox">
+    <input type="checkbox" name="is_family_shared"
+           {{ 'checked' if holding and holding.is_family_shared }}>
+    가족 공유 종목으로 표시
+  </label>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{{ '저장' if holding else '추가' }}</button>
+    <a class="btn" href="{{ url_for('holdings.list_view') }}">취소</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}설정 · LOOP 증권{% endblock %}
+{% block content %}
+<h1 class="page-title">설정</h1>
+
+<section class="section">
+  <div class="section-head"><h2>가족 구성원</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>이름</th><th>권한</th><th>로그인 코드</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('settings.rename_user', user_id=u.id) }}" class="inline-form">
+              <input type="text" name="display_name" value="{{ u.display_name }}">
+              <button class="link" type="submit">변경</button>
+            </form>
+          </td>
+          <td>{{ '관리자' if u.role == 'admin' else '뷰어' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('settings.regenerate_code', user_id=u.id) }}"
+                  onsubmit="return confirm('새 코드를 생성하면 기존 코드는 사용할 수 없습니다. 계속할까요?');">
+              <button class="link" type="submit">코드 재발급</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">코드는 해시로만 저장되어 다시 볼 수 없습니다. 재발급 시 새 코드가 한 번만 표시됩니다.</p>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>현금 잔액 (가족)</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>구성원</th><th class="num">KRW (원)</th><th class="num">USD ($)</th><th></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <form method="post" action="{{ url_for('settings.set_cash', user_id=u.id) }}">
+            <td>{{ u.display_name }}{% if u.role == 'admin' %} (본인){% endif %}</td>
+            <td class="num"><input type="number" name="KRW" step="any" min="0"
+                  value="{{ cash.get(u.id, {}).get('KRW', '') }}" style="max-width:150px"></td>
+            <td class="num"><input type="number" name="USD" step="any" min="0"
+                  value="{{ cash.get(u.id, {}).get('USD', '') }}" style="max-width:130px"></td>
+            <td><button class="link" type="submit">저장</button></td>
+          </form>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">현금(USD/KRW)은 해당 구성원의 총 자산에 포함됩니다.</p>
+</section>
+
+<section class="section">
+  <div class="section-head"><h2>증권사 / 플랫폼</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>이름</th><th></th></tr></thead>
+      <tbody>
+        {% for p in platforms %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('settings.rename_platform', platform_id=p.id) }}" class="inline-form">
+              <input type="text" name="name" value="{{ p.name }}">
+              <button class="link" type="submit">변경</button>
+            </form>
+          </td>
+          <td></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <form method="post" action="{{ url_for('settings.new_platform') }}" class="inline-form" style="margin-top:12px">
+    <input type="text" name="name" placeholder="새 증권사 이름">
+    <button class="btn btn-primary" type="submit">+ 추가</button>
+  </form>
+</section>
+{% endblock %}

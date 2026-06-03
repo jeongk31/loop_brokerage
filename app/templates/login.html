@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}로그인 · LOOP 증권{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="card login-card">
+    <div class="login-logo"><span class="brand-mark">LOOP</span> 증권</div>
+    <div class="login-sub">powered by Loop Dimension</div>
+    {% if error %}<div class="flash flash-error" style="margin-top:18px">{{ error }}</div>{% endif %}
+    <form method="post" autocomplete="off">
+      <input class="code-input" type="text" name="code" inputmode="text"
+             placeholder="로그인 코드" autofocus required>
+      <button class="btn btn-primary btn-block" type="submit">로그인</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

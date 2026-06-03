@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LOOP 증권{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  {% if current_user %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard.index') }}">
+      <span class="brand-mark">LOOP</span> 증권
+    </a>
+    <nav class="nav">
+      <a href="{{ url_for('dashboard.index') }}">대시보드</a>
+      {% if is_admin %}<a href="{{ url_for('transactions.list_view') }}">거래내역</a>{% endif %}
+      {% if is_admin %}<a href="{{ url_for('realized.index') }}">실현손익</a>{% endif %}
+      <a href="{{ url_for('charts.index') }}">차트</a>
+      {% if is_admin %}<a href="{{ url_for('settings.index') }}">설정</a>{% endif %}
+    </nav>
+    {% if is_admin %}
+    <div class="seg seg-dark">
+      <a class="seg-btn {{ 'active' if scope == 'all' }}" href="{{ url_for('auth.set_scope', mode='all') }}">전체</a>
+      <a class="seg-btn {{ 'active' if scope == 'mine' }}" href="{{ url_for('auth.set_scope', mode='mine') }}">본인</a>
+    </div>
+    {% endif %}
+    <div class="user">
+      <span class="avatar">{{ current_user.display_name[0] }}</span>
+      <span class="who">{{ current_user.display_name }}</span>
+      <a class="logout" href="{{ url_for('auth.logout') }}">로그아웃</a>
+    </div>
+  </header>
+  {% endif %}
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span class="powered">powered by</span>
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Loop Dimension" class="footer-logo">
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,48 @@
+{# expects: holdings (enriched). optional: show_actions #}
+{% if holdings %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        {% if is_admin and not hide_platform %}<th>플랫폼</th>{% endif %}
+        <th>종목</th>
+        <th class="num">보유수량</th>
+        <th class="num">평균단가</th>
+        <th class="num">현재가</th>
+        <th class="num">평가금액</th>
+        <th class="num">평가손익</th>
+        <th class="num">수익률</th>
+        {% if show_actions and is_admin %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holdings %}
+      {% set dec = 0 if h.currency == 'KRW' else 2 %}
+      <tr>
+        {% if is_admin and not hide_platform %}<td>{{ h.platforms.name if h.platforms else '-' }}</td>{% endif %}
+        <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span>
+          {% if h.is_family_shared %}<span class="badge shared">공유</span>{% endif %}
+        </td>
+        <td class="num">{{ h.quantity|num(4) }}</td>
+        <td class="num">{{ h.avg_cost|num(dec) }}</td>
+        <td class="num">{% if h.current_price is not none %}{{ h.current_price|num(dec) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num">{{ h.value|num(dec) }} <span class="muted">{{ h.currency }}</span></td>
+        <td class="num {{ 'up' if (h.pl or 0) >= 0 else 'down' }}">{{ h.pl|signed(dec) }}</td>
+        <td class="num {{ 'up' if (h.return_pct or 0) >= 0 else 'down' }}">{{ h.return_pct|pct }}</td>
+        {% if show_actions and is_admin %}
+        <td class="row-actions">
+          <a class="link" href="{{ url_for('holdings.edit', holding_id=h.id) }}">수정</a>
+          <form method="post" action="{{ url_for('holdings.delete', holding_id=h.id) }}"
+                onsubmit="return confirm('삭제하시겠습니까?');">
+            <button class="link danger" type="submit">삭제</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">표시할 보유 종목이 없습니다.</p>
+{% endif %}

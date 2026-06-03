@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ '거래 수정' if tx else '거래 추가' }} · LOOP 증권{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ '거래 수정' if tx else '거래 추가' }}</h1>
+
+<form method="post" class="card form">
+  <div class="grid-2">
+    <label>소유자
+      <select name="user_id" required>
+        {% for u in users %}
+        <option value="{{ u.id }}" {{ 'selected' if tx and tx.user_id == u.id }}>
+          {{ u.display_name }}{% if u.role == 'admin' %} (관리자){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>증권사
+      <select name="platform_id">
+        <option value="">선택 안 함</option>
+        {% for p in platforms %}
+        <option value="{{ p.id }}" {{ 'selected' if tx and tx.platform_id == p.id }}>
+          {{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div class="ticker-field">
+    <label>종목 검색
+      <input type="text" id="ticker-search" placeholder="삼성, 하이닉스, 두산, AAPL …"
+             autocomplete="off">
+    </label>
+    <ul id="ticker-results" class="ac-results"></ul>
+  </div>
+
+  <div class="grid-2">
+    <label>티커
+      <input type="text" name="ticker" id="ticker" required
+             value="{{ tx.ticker if tx else '' }}">
+    </label>
+    <label>종목명
+      <input type="text" name="name" id="name" required
+             value="{{ tx.name if tx else '' }}">
+    </label>
+  </div>
+
+  <div class="grid-2">
+    <label>구분
+      <select name="side" required>
+        <option value="buy" {{ 'selected' if tx and tx.side == 'buy' }}>매수</option>
+        <option value="sell" {{ 'selected' if tx and tx.side == 'sell' }}>매도</option>
+      </select>
+    </label>
+    <label>거래일
+      <input type="date" name="trade_date" required
+             value="{{ tx.trade_date if tx else '' }}">
+    </label>
+  </div>
+
+  <div class="grid-2">
+    <label>수량
+      <input type="number" name="quantity" step="any" min="0" required
+             value="{{ tx.quantity if tx else '' }}">
+    </label>
+    <label>단가
+      <input type="number" name="price" step="any" min="0" required
+             value="{{ tx.price if tx else '' }}">
+    </label>
+  </div>
+
+  <div class="grid-2">
+    <label>수수료
+      <input type="number" name="fee" step="any" min="0"
+             value="{{ tx.fee if tx else '0' }}">
+    </label>
+    <label>통화
+      <select name="currency">
+        <option value="KRW" {{ 'selected' if not tx or tx.currency == 'KRW' }}>KRW</option>
+        <option value="USD" {{ 'selected' if tx and tx.currency == 'USD' }}>USD</option>
+      </select>
+    </label>
+  </div>
+
+  <label>메모
+    <textarea name="notes" rows="2">{{ tx.notes if tx and tx.notes else '' }}</textarea>
+  </label>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{{ '저장' if tx else '추가' }}</button>
+    <a class="btn" href="{{ url_for('transactions.list_view') }}">취소</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
+{% endblock %}

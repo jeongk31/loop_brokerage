@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}보유종목 · LOOP 증권{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">보유종목</h1>
+  <div class="row-actions">
+    {% if is_admin %}
+    <form method="post" action="{{ url_for('holdings.refresh_prices') }}">
+      <button class="btn" type="submit">↻ 시세 새로고침</button>
+    </form>
+    <a class="btn btn-primary" href="{{ url_for('holdings.new') }}">+ 종목 추가</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card stat">
+    <div class="stat-label">평가금액 합계</div>
+    <div class="stat-value">₩{{ summary.total_value_krw|num }}</div>
+    <div class="stat-sub muted">매수원가 ₩{{ summary.total_cost_krw|num }}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">평가손익</div>
+    <div class="stat-value {{ 'up' if summary.total_pl_krw >= 0 else 'down' }}">{{ summary.total_pl_krw|signed }}</div>
+    <div class="stat-sub {{ 'up' if (summary.return_pct or 0) >= 0 else 'down' }}">수익률 {{ summary.return_pct|pct }}</div>
+  </div>
+</div>
+
+{% set show_actions = true %}
+{% set hide_platform = true %}
+{% for g in grouped %}
+<section class="section">
+  <div class="section-head">
+    <h2>{{ g.platform }}</h2>
+    <span class="muted">평가 ₩{{ g.value_krw|num }} · <span class="{{ 'up' if g.pl_krw >= 0 else 'down' }}">손익 {{ g.pl_krw|signed }}</span></span>
+  </div>
+  {% set holdings = g.holdings %}
+  {% include "_holdings_table.html" %}
+</section>
+{% else %}
+<p class="muted">표시할 보유 종목이 없습니다.</p>
+{% endfor %}
+{% endblock %}
