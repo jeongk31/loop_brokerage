@@ -58,7 +58,7 @@ def index():
                                     "value_krw": val, "cash": ucash,
                                     "total": val + ucash["total_krw"]})
 
-    owners, plats_present = [], []
+    owners, plats_present, holdings_js = [], [], []
     for h in enriched:
         o = (h.get("users") or {}).get("display_name", "?")
         p = (h.get("platforms") or {}).get("name", "기타")
@@ -66,6 +66,15 @@ def index():
             owners.append(o)
         if p not in plats_present:
             plats_present.append(p)
+        holdings_js.append({
+            "id": h.get("id"), "owner": o, "plat": p,
+            "ticker": h["ticker"], "name": h["name"],
+            "qty": float(h["quantity"]), "avg": float(h["avg_cost"]),
+            "cur": h.get("current_price"), "ccy": h["currency"],
+            "value": h.get("value"), "value_krw": h.get("value_krw") or 0,
+            "cost": h.get("cost_basis") or 0, "pl": h.get("pl"),
+            "ret": h.get("return_pct"),
+        })
 
     # Loans + net worth + value-over-time are admin-only (whole-family / private).
     if is_admin():
@@ -88,7 +97,7 @@ def index():
         "dashboard.html",
         summary=summ,
         family_overview=family_overview,
-        holdings_flat=enriched,
+        holdings_js=holdings_js,
         owners=owners,
         plats_present=plats_present,
         cash=cash,

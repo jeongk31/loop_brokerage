@@ -73,12 +73,13 @@ KR_OVERRIDE = {
 KIS_HOLDINGS = [
     # (name, ticker, currency, qty, trade_date)
     ("대우건설", "047040.KS", "KRW", 1, "2022-08-02"),
-    ("ProShares UltraPro QQQ", "TQQQ", "USD", 2, "2022-10-04"),
+    # 1 pre-split share bought 2022-10-04 → 2 shares now after the 2025-11-20 2:1 split
+    ("ProShares UltraPro QQQ", "TQQQ", "USD", 1, "2022-10-04"),
 ]
 # Historical close prices (native currency) — set by fetch step or by hand.
 KIS_PRICES = {
     "047040.KS@2022-08-02": 5210,    # KRW close on 2022-08-02 (Naver Finance)
-    "TQQQ@2022-10-04": 23.05,        # 32,914.5원 ÷ USDKRW 1427.76 (ECB, 2022-10-04)
+    "TQQQ@2022-10-04": 46.10,        # raw (pre-2025-split); ÷2 → $23.05/current share
 }
 
 KR_BUY = {"매수", "매수_NXT", "융자매수"}

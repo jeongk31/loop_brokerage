@@ -123,51 +123,7 @@
   {% endif %}
 </div>
 
-{% if holdings_flat %}
-<div class="table-wrap">
-  <table id="holdTable">
-    <thead>
-      <tr>
-        {% if is_admin %}<th>소유자</th>{% endif %}
-        <th>증권사</th><th>종목</th>
-        <th class="num">보유수량</th><th class="num">평균단가</th><th class="num">현재가</th>
-        <th class="num">평가금액</th><th class="num">평가손익</th><th class="num">수익률</th>
-        {% if is_admin %}<th></th>{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for h in holdings_flat %}
-      {% set dec = 0 if h.currency == 'KRW' else 2 %}
-      {% set owner = (h.users.display_name if h.users else '?') %}
-      {% set plat = (h.platforms.name if h.platforms else '기타') %}
-      <tr data-owner="{{ owner }}" data-plat="{{ plat }}">
-        {% if is_admin %}<td>{{ owner }}</td>{% endif %}
-        <td>{{ plat }}</td>
-        <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span>
-          {% if h.is_family_shared %}<span class="badge shared">공유</span>{% endif %}</td>
-        <td class="num">{{ h.quantity|num(4) }}</td>
-        <td class="num">{{ h.avg_cost|num(dec) }}</td>
-        <td class="num">{% if h.current_price is not none %}{{ h.current_price|num(dec) }}{% else %}—{% endif %}</td>
-        <td class="num">{{ h.value|num(dec) }} <span class="muted">{{ h.currency }}</span></td>
-        <td class="num {{ 'up' if (h.pl or 0) >= 0 else 'down' }}">{{ h.pl|signed(dec) }}</td>
-        <td class="num {{ 'up' if (h.return_pct or 0) >= 0 else 'down' }}">{{ h.return_pct|pct }}</td>
-        {% if is_admin %}
-        <td class="row-actions">
-          <a class="link" href="{{ url_for('holdings.edit', holding_id=h.id) }}">수정</a>
-          <form method="post" action="{{ url_for('holdings.delete', holding_id=h.id) }}"
-                onsubmit="return confirm('삭제하시겠습니까?');">
-            <button class="link danger" type="submit">삭제</button>
-          </form>
-        </td>
-        {% endif %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<p class="muted">표시할 보유 종목이 없습니다.</p>
-{% endif %}
+<div class="table-wrap"><div id="holdContainer"></div></div>
 
 <section class="section">
   <div class="section-head">
@@ -237,24 +193,53 @@ document.querySelectorAll('[data-alloc]').forEach(b=>b.addEventListener('click',
   setAlloc(b.dataset.alloc);
 }));
 
-// 보유종목 filters: 구성원 + 증권사 (both applied together)
+// 보유종목 — combine by stock when 전체, per-owner detail when an owner is selected
+const HOLD = {{ holdings_js|tojson }};
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 let fOwner = '__all', fPlat = '__all';
-function applyHoldFilter(){
-  document.querySelectorAll('#holdTable tbody tr').forEach(tr=>{
-    const okO = (fOwner === '__all' || tr.dataset.owner === fOwner);
-    const okP = (fPlat === '__all' || tr.dataset.plat === fPlat);
-    tr.style.display = (okO && okP) ? '' : 'none';
-  });
+const nf = (v,d)=> (v==null||isNaN(v)) ? '—' : Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const sf = (v,d)=> (v==null||isNaN(v)) ? '—' : (v>=0?'+':'') + Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const pf = (v)=> (v==null||isNaN(v)) ? '—' : (v>=0?'+':'') + Number(v).toFixed(1) + '%';
+const cls = v => (v||0) >= 0 ? 'up' : 'down';
+
+function renderHoldings(){
+  let rows = HOLD.filter(h => fPlat==='__all' || h.plat===fPlat);
+  const c = document.getElementById('holdContainer');
+  if (!rows.length){ c.innerHTML = '<p class="muted">표시할 보유 종목이 없습니다.</p>'; return; }
+  let head, body;
+
+  if (fOwner === '__all') {                       // COMBINED by stock
+    const agg = {};
+    rows.forEach(h=>{
+      const a = agg[h.ticker] || (agg[h.ticker]={name:h.name,ticker:h.ticker,ccy:h.ccy,cur:h.cur,qty:0,cost:0,value:0,vkrw:0});
+      a.qty+=h.qty; a.cost+=h.qty*h.avg; a.value+=(h.value||0); a.vkrw+=(h.value_krw||0);
+    });
+    head = '<tr><th>종목</th><th class=num>보유수량</th><th class=num>평균단가</th><th class=num>현재가</th><th class=num>평가금액</th><th class=num>평가손익</th><th class=num>수익률</th></tr>';
+    body = Object.values(agg).sort((a,b)=>b.vkrw-a.vkrw).map(a=>{
+      const d=a.ccy==='KRW'?0:2, avg=a.qty?a.cost/a.qty:0, pl=a.value!=null?a.value-a.cost:null, ret=a.cost?pl/Math.abs(a.cost)*100:null;
+      return `<tr><td>${a.name} <span class=muted>${a.ticker}</span></td><td class=num>${nf(a.qty,4)}</td><td class=num>${nf(avg,d)}</td><td class=num>${nf(a.cur,d)}</td><td class=num>${nf(a.value,d)} <span class=muted>${a.ccy}</span></td><td class="num ${cls(pl)}">${sf(pl,d)}</td><td class="num ${cls(ret)}">${pf(ret)}</td></tr>`;
+    }).join('');
+  } else {                                        // per-owner detail
+    rows = rows.filter(h=>h.owner===fOwner);
+    head = `<tr><th>증권사</th><th>종목</th><th class=num>보유수량</th><th class=num>평균단가</th><th class=num>현재가</th><th class=num>평가금액</th><th class=num>평가손익</th><th class=num>수익률</th>${IS_ADMIN?'<th></th>':''}</tr>`;
+    body = rows.sort((a,b)=>(b.value_krw||0)-(a.value_krw||0)).map(h=>{
+      const d=h.ccy==='KRW'?0:2;
+      const act = IS_ADMIN ? `<td class=row-actions><a class=link href="/holdings/${h.id}/edit">수정</a> <form method=post action="/holdings/${h.id}/delete" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')"><button class="link danger" type=submit>삭제</button></form></td>` : '';
+      return `<tr><td>${h.plat}</td><td>${h.name} <span class=muted>${h.ticker}</span></td><td class=num>${nf(h.qty,4)}</td><td class=num>${nf(h.avg,d)}</td><td class=num>${nf(h.cur,d)}</td><td class=num>${nf(h.value,d)} <span class=muted>${h.ccy}</span></td><td class="num ${cls(h.pl)}">${sf(h.pl,d)}</td><td class="num ${cls(h.ret)}">${pf(h.ret)}</td>${act}</tr>`;
+    }).join('');
+  }
+  c.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 function wireSeg(id, set){
   const seg = document.getElementById(id);
   if (!seg) return;
   seg.querySelectorAll('.seg-btn').forEach(b=>b.addEventListener('click',()=>{
     seg.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); set(b); applyHoldFilter();
+    b.classList.add('active'); set(b); renderHoldings();
   }));
 }
 wireSeg('ownerSeg', b=>fOwner=b.dataset.owner);
 wireSeg('platSeg', b=>fPlat=b.dataset.plat);
+renderHoldings();
 </script>
 {% endblock %}
