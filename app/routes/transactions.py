@@ -10,9 +10,13 @@ from flask import (
 )
 
 from ..auth import admin_required, current_user, login_required, view_scope
-from ..services import repo
+from ..services import holdings, repo
 
 bp = Blueprint("transactions", __name__)
+
+
+def _num(v) -> float:
+    return float(str(v or 0).replace(",", "").strip() or 0)   # tolerate 1,234,567
 
 
 def _form_to_tx() -> dict:
@@ -23,9 +27,9 @@ def _form_to_tx() -> dict:
         "name": request.form["name"].strip(),
         "side": request.form["side"],
         "trade_date": request.form["trade_date"],
-        "quantity": float(request.form.get("quantity") or 0),
-        "price": float(request.form.get("price") or 0),
-        "fee": float(request.form.get("fee") or 0),
+        "quantity": _num(request.form.get("quantity")),
+        "price": _num(request.form.get("price")),
+        "fee": _num(request.form.get("fee")),
         "currency": request.form.get("currency") or "KRW",
         "notes": request.form.get("notes") or None,
     }
@@ -34,9 +38,15 @@ def _form_to_tx() -> dict:
 @bp.route("/transactions")
 @login_required
 def list_view():
+    from datetime import date
+    from ..auth import is_admin
     user = current_user()
     return render_template(
-        "transactions.html", transactions=repo.list_transactions(user, view_scope())
+        "transactions.html",
+        transactions=repo.list_transactions(user, view_scope()),
+        users=repo.list_users() if is_admin() else [],
+        platforms=repo.list_platforms(),
+        today=date.today().isoformat(),
     )
 
 
@@ -45,6 +55,7 @@ def list_view():
 def new():
     if request.method == "POST":
         repo.create_transaction(_form_to_tx())
+        holdings.rederive()                       # keep holdings in sync
         flash("거래를 추가했습니다.", "success")
         return redirect(url_for("transactions.list_view"))
     return render_template(
@@ -64,6 +75,7 @@ def edit(tx_id):
         abort(404)
     if request.method == "POST":
         repo.update_transaction(tx_id, _form_to_tx())
+        holdings.rederive()
         flash("거래를 수정했습니다.", "success")
         return redirect(url_for("transactions.list_view"))
     return render_template(
@@ -78,5 +90,6 @@ def edit(tx_id):
 @admin_required
 def delete(tx_id):
     repo.delete_transaction(tx_id)
+    holdings.rederive()
     flash("거래를 삭제했습니다.", "success")
     return redirect(url_for("transactions.list_view"))

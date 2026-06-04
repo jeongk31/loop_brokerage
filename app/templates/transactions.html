@@ -4,7 +4,7 @@
 <div class="page-head">
   <h1 class="page-title">거래내역</h1>
   {% if is_admin %}
-  <a class="btn btn-primary" href="{{ url_for('transactions.new') }}">+ 거래 추가</a>
+  <button class="btn btn-primary" id="openTx">+ 거래 추가</button>
   {% endif %}
 </div>
 
@@ -49,4 +49,87 @@
 {% else %}
 <p class="muted">표시할 거래 내역이 없습니다.</p>
 {% endif %}
+
+{% if is_admin %}
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 style="margin:0;font-size:1.15rem">거래 추가</h2>
+      <button class="modal-close" type="button" id="closeTx">✕</button>
+    </div>
+    <form method="post" action="{{ url_for('transactions.new') }}" class="form" style="max-width:none">
+      <div class="grid-2">
+        <label>소유자
+          <select name="user_id" required>
+            {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>증권사
+          <select name="platform_id">
+            <option value="">선택 안 함</option>
+            {% for p in platforms %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <div class="ticker-field">
+        <label>종목 검색
+          <input type="text" id="ticker-search" placeholder="삼성, 하이닉스, TQQQ …" autocomplete="off">
+        </label>
+        <ul id="ticker-results" class="ac-results"></ul>
+      </div>
+      <div class="grid-2">
+        <label>티커 <input type="text" name="ticker" id="ticker" required></label>
+        <label>종목명 <input type="text" name="name" id="name" required></label>
+      </div>
+
+      <div class="grid-2">
+        <label>구분
+          <select name="side" required><option value="buy">매수</option><option value="sell">매도</option></select>
+        </label>
+        <label>거래일 <input type="date" name="trade_date" value="{{ today }}" required></label>
+      </div>
+      <div class="grid-2">
+        <label>수량 <input type="text" inputmode="decimal" name="quantity" class="num-input" required></label>
+        <label>단가 <input type="text" inputmode="numeric" name="price" class="num-input" required></label>
+      </div>
+      <div class="grid-2">
+        <label>수수료 <input type="text" inputmode="numeric" name="fee" class="num-input" value="0"></label>
+        <label>통화
+          <select name="currency"><option value="KRW">KRW</option><option value="USD">USD</option></select>
+        </label>
+      </div>
+      <label>메모 <textarea name="notes" rows="2"></textarea></label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">추가</button>
+        <button class="btn" type="button" id="cancelTx">취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
+<script>
+const m = document.getElementById('txModal');
+function openM(){ if(m) m.classList.add('open'); }
+function closeM(){ if(m) m.classList.remove('open'); }
+document.getElementById('openTx')?.addEventListener('click', openM);
+document.getElementById('closeTx')?.addEventListener('click', closeM);
+document.getElementById('cancelTx')?.addEventListener('click', closeM);
+m?.addEventListener('click', e=>{ if(e.target===m) closeM(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
+
+// thousands separators while typing
+function fmt(el){
+  const raw = el.value.replace(/,/g,'');
+  if(raw==='' || raw==='.') return;
+  const [i,d] = raw.split('.');
+  if(i==='' || isNaN(i)) { return; }
+  el.value = Number(i).toLocaleString('en-US') + (d!==undefined ? '.'+d : '');
+}
+document.querySelectorAll('.num-input').forEach(el=>el.addEventListener('input',()=>fmt(el)));
+</script>
 {% endblock %}
