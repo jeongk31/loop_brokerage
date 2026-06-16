@@ -22,7 +22,13 @@ def _num(v) -> float:
 @bp.route("/family")
 @admin_required
 def index():
-    members = [u for u in repo.list_users() if u["role"] != "admin"]
+    # Display order: 엄마, 이정한, 이지안 (then any others).
+    order = ["엄마", "이정한", "이지안"]
+    rank = {name: i for i, name in enumerate(order)}
+    members = sorted(
+        (u for u in repo.list_users() if u["role"] != "admin"),
+        key=lambda u: rank.get(u["display_name"], len(order)),
+    )
     enriched, summ = portfolio.load_view(repo.list_holdings(current_user(), "all"))
     fx = summ["fx"]
 

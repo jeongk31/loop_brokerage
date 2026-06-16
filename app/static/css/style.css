@@ -72,6 +72,9 @@ h1, h2 { letter-spacing: -0.01em; }
   border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
   gap: 14px; margin-bottom: 18px; }
+/* 가족: one member per full-width row, stacked top to bottom */
+.family-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+.family-list > .card { width: 100%; }
 .stat-label { color: var(--muted); font-size: .78rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: .04em; }
 .stat-value { font-size: 1.4rem; font-weight: 750; margin-top: 6px;
