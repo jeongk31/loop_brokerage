@@ -56,6 +56,7 @@ def create_app() -> Flask:
     from .routes.settings import bp as settings_bp
     from .routes.charts import bp as charts_bp
     from .routes.realized import bp as realized_bp
+    from .routes.family import bp as family_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -65,5 +66,6 @@ def create_app() -> Flask:
     app.register_blueprint(settings_bp)
     app.register_blueprint(charts_bp)
     app.register_blueprint(realized_bp)
+    app.register_blueprint(family_bp)
 
     return app

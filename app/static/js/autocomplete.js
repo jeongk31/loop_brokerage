@@ -8,6 +8,30 @@
 
   var timer = null;
 
+  // Korean listings end in .KS (KOSPI) / .KQ (KOSDAQ) / .KN.
+  function isKorean(ticker) {
+    return /\.(KS|KQ|KN)$/i.test(ticker || "");
+  }
+
+  function selectByText(sel, text) {
+    if (!sel) return;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].text.trim() === text) {
+        sel.value = sel.options[i].value;
+        return;
+      }
+    }
+  }
+
+  // Korean stock -> 삼성증권 / KRW; otherwise -> IBKR / USD.
+  function applyDefaults(ticker) {
+    var korean = isKorean(ticker);
+    selectByText(document.querySelector('select[name="platform_id"]'),
+                 korean ? "삼성증권" : "IBKR");
+    var ccy = document.querySelector('select[name="currency"]');
+    if (ccy) ccy.value = korean ? "KRW" : "USD";
+  }
+
   function clearResults() {
     results.innerHTML = "";
     results.classList.remove("open");
@@ -27,6 +51,7 @@
         if (tickerField) tickerField.value = it.ticker;
         if (nameField) nameField.value = it.name;
         input.value = it.label;
+        applyDefaults(it.ticker);
         clearResults();
       });
       results.appendChild(li);

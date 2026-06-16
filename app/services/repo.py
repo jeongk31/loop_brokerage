@@ -117,3 +117,19 @@ def update_transaction(tx_id: str, data: dict) -> None:
 
 def delete_transaction(tx_id: str) -> None:
     get_client().table("transactions").delete().eq("id", tx_id).execute()
+
+
+# --- cash balances ----------------------------------------------------------
+
+def get_cash_amount(user_id: str, currency: str) -> float:
+    rows = (get_client().table("cash_balances").select("amount")
+            .eq("user_id", user_id).eq("currency", currency).execute().data or [])
+    return float(rows[0]["amount"]) if rows else 0.0
+
+
+def adjust_cash(user_id: str, currency: str, delta: float) -> None:
+    """Add `delta` (may be negative) to a member's cash for `currency`."""
+    new_amount = get_cash_amount(user_id, currency) + delta
+    get_client().table("cash_balances").upsert(
+        {"user_id": user_id, "currency": currency, "amount": round(new_amount, 2)}
+    ).execute()
