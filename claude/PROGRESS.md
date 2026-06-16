@@ -150,6 +150,18 @@ Dated log of what's actually done. Newest first.
 - `derive_holdings.py` now reads splits from the table; `refresh_splits.py` SEED holds
   the researched set + pulls authoritative history from yfinance when run outside the sandbox.
 
+## 2026-06-03 — DEPLOYED 🚀
+- Pushed to GitHub: github.com/jeongk31/loop_brokerage (.env + STARTING_DATA gitignored).
+- Railway deploy: gunicorn (Procfile binds $PORT), Python 3.11, env vars set.
+  Custom domain **brokerage.jeongkyu.me** + SSL.
+- Daily cron (Railway, 22:00 UTC): `scripts/daily_update.py` =
+  refresh_splits → derive_holdings → refresh_prices → build_portfolio_history.
+- `/healthz` diagnostic endpoint added (booleans only; can remove later).
+- Admin (이정규) login code set to LOOPS1542.
+- KNOWN MINOR: value-over-time chart's latest point (~₩36.9M) vs dashboard total
+  (₩37.4M) differ ~1.4% — history clamps TQQQ per-ticker vs holdings per-platform.
+  Dashboard total is authoritative. Reconcile = reconstruct history per platform+ticker.
+
 ## 2026-06-03 — Comprehensive ticker DB in Supabase
 - Replaced the JSON-file autocomplete with a Supabase `tickers` table.
 - `migrations/002_tickers.sql` (user ran it): `tickers` table + pg_trgm indexes.

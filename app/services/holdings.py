@@ -25,50 +25,62 @@ def _fetch_transactions(c) -> list[dict]:
 
 
 def rederive() -> int:
-    """Recompute the holdings table from scratch. Returns row count written."""
+    """Recompute the holdings table from scratch. Returns row count written.
+
+    Transactions and intra-family transfers are merged into one dated event
+    stream per (user, platform, ticker): a transfer the member RECEIVED is a
+    seed buy at the giver's average cost, so later buys/sells (e.g. when an admin
+    trades on a member's behalf) correctly add to / reduce the gifted position.
+    The giver's side is applied afterwards and may go negative (a deficit).
+    """
     c = get_client()
     sp = splits_svc.load_splits()
+
+    # Per-position event stream: {date, side, qty, price, name, currency}.
+    events: dict = defaultdict(list)
     groups: dict = defaultdict(list)
     for t in _fetch_transactions(c):
         groups[(t["user_id"], t["platform_id"], t["ticker"])].append(t)
+    for key, trades in groups.items():
+        for t in splits_svc.split_adjust(trades, sp):
+            events[key].append({"date": t["trade_date"], "side": t["side"],
+                                "qty": t["_qty"], "price": t["_price"],
+                                "name": t["name"], "currency": t["currency"]})
+
+    giver: list = []   # (key, qty, avg_cost, name, currency) — applied after, may go negative
+    for t in (c.table("transfers").select("*").execute().data or []):
+        qy = float(t["quantity"])
+        if t["to_user_id"]:                             # received shares = seed buy (post-split)
+            events[(t["to_user_id"], t["to_platform_id"], t["ticker"])].append(
+                {"date": t.get("transfer_date") or "0000-01-01", "side": "buy",
+                 "qty": qy, "price": float(t["avg_cost"]),
+                 "name": t["name"], "currency": t["currency"]})
+        if t["from_user_id"]:
+            giver.append(((t["from_user_id"], t["from_platform_id"], t["ticker"]),
+                          qy, float(t["avg_cost"]), t["name"], t["currency"]))
 
     pos: dict = {}
-    for (u, pl, tk), trades in groups.items():
-        adj = splits_svc.split_adjust(trades, sp)
-        adj.sort(key=lambda x: x["trade_date"])
+    for key, evs in events.items():
+        evs.sort(key=lambda e: e["date"])
         q = avg = 0.0
-        for t in adj:
-            qq, price = t["_qty"], t["_price"]
-            if t["side"] == "buy":                      # weighted-average cost
+        name = ccy = None
+        for e in evs:
+            name, ccy = e["name"], e["currency"]        # last by date wins
+            qq, price = e["qty"], e["price"]
+            if e["side"] == "buy":                       # weighted-average cost
                 avg = (q * avg + qq * price) / (q + qq) if (q + qq) > EPS else price
                 q += qq
-            else:                                       # sell — clamp at zero (long only)
+            else:                                        # sell — clamp at zero (long only)
                 q -= min(qq, q)
                 if q < EPS:
                     q = avg = 0.0
         if abs(q) > EPS:
-            last = max(trades, key=lambda x: x["trade_date"])
-            pos[(u, pl, tk)] = {"name": last["name"], "quantity": q,
-                                "avg_cost": avg, "currency": last["currency"]}
+            pos[key] = {"name": name, "quantity": q, "avg_cost": avg, "currency": ccy}
 
-    # intra-family transfers (giver may go negative)
-    for t in (c.table("transfers").select("*").execute().data or []):
-        qy = float(t["quantity"])
-        if t["from_user_id"]:
-            p = pos.setdefault((t["from_user_id"], t["from_platform_id"], t["ticker"]),
-                               {"name": t["name"], "quantity": 0.0,
-                                "avg_cost": float(t["avg_cost"]), "currency": t["currency"]})
-            p["quantity"] -= qy
-        if t["to_user_id"]:
-            key = (t["to_user_id"], t["to_platform_id"], t["ticker"])
-            p = pos.get(key)
-            if p:
-                tot = p["quantity"] + qy
-                p["avg_cost"] = ((p["quantity"] * p["avg_cost"] + qy * float(t["avg_cost"])) / tot) if tot else float(t["avg_cost"])
-                p["quantity"] = tot
-            else:
-                pos[key] = {"name": t["name"], "quantity": qy,
-                            "avg_cost": float(t["avg_cost"]), "currency": t["currency"]}
+    for key, qy, avg_cost, name, currency in giver:     # giver deficit (may go negative)
+        p = pos.setdefault(key, {"name": name, "quantity": 0.0,
+                                 "avg_cost": avg_cost, "currency": currency})
+        p["quantity"] -= qy
 
     holdings = [
         {"user_id": u, "platform_id": pl, "ticker": tk, "name": v["name"],

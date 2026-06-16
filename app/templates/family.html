@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}가족 · LOOP 증권{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">가족</h1>
+  <button class="btn btn-primary" id="openBuy">+ 매수</button>
+</div>
+<p class="muted" style="margin-top:-6px">구성원의 포트폴리오를 대신 매수·매도합니다. 매도하면 현금이 늘고, 매수하면 현금이 줄어듭니다.</p>
+
+<div class="cards">
+  {% for m in cards %}
+  <div class="card">
+    <div class="section-head" style="margin-bottom:10px">
+      <h3 class="chart-title" style="margin:0">👤 {{ m.name }}</h3>
+      <span style="font-weight:750">₩{{ m.total|num }}</span>
+    </div>
+    <div class="mini-wrap">
+    <table class="mini">
+      {% for h in m.holdings %}
+      <tr>
+        <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span></td>
+        <td class="num">{{ h.quantity|num(2) }}주</td>
+        <td class="num muted">{{ h.current_price|num(0 if h.currency=='KRW' else 2) }} {{ h.currency }}</td>
+        <td class="num">₩{{ h.value_krw|num }}</td>
+        <td class="num">
+          <button class="link sell-btn" type="button"
+                  data-user="{{ m.id }}" data-name-user="{{ m.name }}"
+                  data-platform="{{ h.platform_id or '' }}"
+                  data-ticker="{{ h.ticker }}" data-stock="{{ h.name }}"
+                  data-qty="{{ h.quantity }}" data-ccy="{{ h.currency }}"
+                  data-price="{{ h.current_price if h.current_price is not none else '' }}">매도</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">보유 종목이 없습니다.</td></tr>
+      {% endfor %}
+      <tr>
+        <td>💵 현금</td>
+        <td class="num muted" colspan="3">{% for ccy, amt in m.cash.by_currency.items() %}{{ ccy }} {{ amt|num(0 if ccy=='KRW' else 2) }}{% if not loop.last %} · {% endif %}{% else %}—{% endfor %}</td>
+        <td class="num">₩{{ m.cash.total_krw|num }}</td>
+      </tr>
+    </table>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn buy-btn" type="button" data-user="{{ m.id }}">+ {{ m.name }} 매수</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 매도 modal -->
+<div class="modal-overlay" id="sellModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 style="margin:0;font-size:1.15rem">매도 — <span id="sellWho"></span></h2>
+      <button class="modal-close" type="button" data-close>✕</button>
+    </div>
+    <form method="post" action="{{ url_for('family.trade') }}" class="form" style="max-width:none">
+      <input type="hidden" name="side" value="sell">
+      <input type="hidden" name="user_id" id="sell_user">
+      <input type="hidden" name="platform_id" id="sell_platform">
+      <input type="hidden" name="ticker" id="sell_ticker">
+      <input type="hidden" name="name" id="sell_name">
+      <input type="hidden" name="currency" id="sell_ccy">
+      <input type="hidden" name="trade_date" value="{{ today }}">
+      <p class="muted" style="margin:0 0 4px">
+        <span id="sellStock" style="font-weight:650;color:var(--ink)"></span> ·
+        보유 <span id="sellHave"></span>주</p>
+      <div class="grid-2">
+        <label>매도 수량 <input type="text" inputmode="decimal" name="quantity" id="sell_qty" class="num-input" required></label>
+        <label>단가 (<span id="sellCcyLabel"></span>) <input type="text" inputmode="decimal" name="price" id="sell_price" class="num-input" required></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">매도</button>
+        <button class="btn" type="button" data-close>취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 매수 modal -->
+<div class="modal-overlay" id="buyModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 style="margin:0;font-size:1.15rem">매수</h2>
+      <button class="modal-close" type="button" data-close>✕</button>
+    </div>
+    <form method="post" action="{{ url_for('family.trade') }}" class="form" style="max-width:none">
+      <input type="hidden" name="side" value="buy">
+      <input type="hidden" name="trade_date" value="{{ today }}">
+      <div class="grid-2">
+        <label>구성원
+          <select name="user_id" id="buy_user" required>
+            {% for u in members %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>증권사
+          <select name="platform_id" id="buy_platform">
+            <option value="">선택 안 함</option>
+            {% for p in platforms %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="ticker-field">
+        <label>종목 검색
+          <input type="text" id="ticker-search" placeholder="삼성, 하이닉스, TQQQ …" autocomplete="off">
+        </label>
+        <ul id="ticker-results" class="ac-results"></ul>
+      </div>
+      <div class="grid-2">
+        <label>티커 <input type="text" name="ticker" id="ticker" required></label>
+        <label>종목명 <input type="text" name="name" id="name" required></label>
+      </div>
+      <div class="grid-2">
+        <label>매수 수량 <input type="text" inputmode="decimal" name="quantity" class="num-input" required></label>
+        <label>단가 <input type="text" inputmode="decimal" name="price" class="num-input" required></label>
+      </div>
+      <div class="grid-2">
+        <label>통화
+          <select name="currency" id="currency">
+            <option value="KRW">KRW</option><option value="USD">USD</option>
+          </select>
+        </label>
+        <label>&nbsp;</label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">매수</button>
+        <button class="btn" type="button" data-close>취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
+<script>
+const sellModal = document.getElementById('sellModal');
+const buyModal  = document.getElementById('buyModal');
+function open(m){ m.classList.add('open'); }
+function close(m){ m.classList.remove('open'); }
+
+document.querySelectorAll('.sell-btn').forEach(b=>b.addEventListener('click',()=>{
+  const d = b.dataset;
+  document.getElementById('sell_user').value = d.user;
+  document.getElementById('sell_platform').value = d.platform;
+  document.getElementById('sell_ticker').value = d.ticker;
+  document.getElementById('sell_name').value = d.stock;
+  document.getElementById('sell_ccy').value = d.ccy;
+  document.getElementById('sellWho').textContent = d.nameUser;
+  document.getElementById('sellStock').textContent = d.stock + ' (' + d.ticker + ')';
+  document.getElementById('sellHave').textContent = Number(d.qty).toLocaleString(undefined,{maximumFractionDigits:4});
+  document.getElementById('sellCcyLabel').textContent = d.ccy;
+  document.getElementById('sell_qty').value = '';
+  document.getElementById('sell_price').value = d.price || '';
+  open(sellModal);
+}));
+
+// 매수 buttons (per member) + top button
+document.querySelectorAll('.buy-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.getElementById('buy_user').value = b.dataset.user;
+  open(buyModal);
+}));
+document.getElementById('openBuy').addEventListener('click',()=>open(buyModal));
+
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{
+  close(sellModal); close(buyModal);
+}));
+[sellModal, buyModal].forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) close(m); }));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ close(sellModal); close(buyModal); } });
+
+// thousands separators while typing
+function fmt(el){
+  const raw = el.value.replace(/,/g,'');
+  if(raw==='' || raw==='.') return;
+  const [i,d] = raw.split('.');
+  if(i==='' || isNaN(i)) return;
+  el.value = Number(i).toLocaleString('en-US') + (d!==undefined ? '.'+d : '');
+}
+document.querySelectorAll('.num-input').forEach(el=>el.addEventListener('input',()=>fmt(el)));
+</script>
+{% endblock %}
