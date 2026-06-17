@@ -208,14 +208,17 @@ def group_by_owner(enriched: list[dict]) -> list[dict]:
 
 
 def load_cash(user_ids: list[str], fx: float) -> dict:
-    """Cash for the given users: {by_currency, total_krw}."""
-    if not user_ids:
-        return {"by_currency": {}, "total_krw": 0.0}
-    rows = (get_client().table("cash_balances").select("currency, amount")
-            .in_("user_id", user_ids).execute().data or [])
-    by_ccy: dict = {}
-    for r in rows:
-        by_ccy[r["currency"]] = by_ccy.get(r["currency"], 0.0) + float(r["amount"])
+    """Cash for the given users: {by_currency, total_krw}.
+
+    Always reports both KRW and USD (0 when absent) so members consistently see
+    each currency balance.
+    """
+    by_ccy: dict = {"KRW": 0.0, "USD": 0.0}
+    if user_ids:
+        rows = (get_client().table("cash_balances").select("currency, amount")
+                .in_("user_id", user_ids).execute().data or [])
+        for r in rows:
+            by_ccy[r["currency"]] = by_ccy.get(r["currency"], 0.0) + float(r["amount"])
     total = by_ccy.get("KRW", 0.0) + by_ccy.get("USD", 0.0) * (fx or 0)
     return {"by_currency": by_ccy, "total_krw": total}
 

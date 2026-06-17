@@ -107,3 +107,13 @@ def trade():
     verb = "매도" if side == "sell" else "매수"
     flash(f"{verb} 완료: {request.form['name'].strip()} {qty:g}주.", "success")
     return redirect(url_for("family.index"))
+
+
+@bp.route("/family/cash", methods=["POST"])
+@admin_required
+def cash():
+    user_id = request.form["user_id"]
+    repo.set_cash(user_id, "KRW", _num(request.form.get("krw")))
+    repo.set_cash(user_id, "USD", _num(request.form.get("usd")))
+    flash("현금을 수정했습니다.", "success")
+    return redirect(url_for("family.index"))

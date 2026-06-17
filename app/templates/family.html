@@ -39,8 +39,10 @@
       </tr>
     </table>
     </div>
-    <div style="margin-top:12px">
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn buy-btn" type="button" data-user="{{ m.id }}">+ {{ m.name }} 매수</button>
+      <button class="btn cash-btn" type="button" data-user="{{ m.id }}" data-name="{{ m.name }}"
+              data-krw="{{ m.cash.by_currency.get('KRW', 0) }}" data-usd="{{ m.cash.by_currency.get('USD', 0) }}">💵 현금 수정</button>
     </div>
   </div>
   {% endfor %}
@@ -74,6 +76,29 @@
       </div>
       <div class="form-actions">
         <button class="btn btn-primary" type="submit">매도</button>
+        <button class="btn" type="button" data-close>취소</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 현금 수정 modal -->
+<div class="modal-overlay" id="cashModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 style="margin:0;font-size:1.15rem">현금 수정 — <span id="cashWho"></span></h2>
+      <button class="modal-close" type="button" data-close>✕</button>
+    </div>
+    <form method="post" action="{{ url_for('family.cash') }}" class="form" style="max-width:none">
+      <input type="hidden" name="user_id" id="cash_user">
+      <div class="grid-2">
+        <label><span>원화 (KRW)</span>
+          <input type="text" inputmode="numeric" name="krw" id="cash_krw" class="num-input"></label>
+        <label><span>달러 (USD)</span>
+          <input type="text" inputmode="decimal" name="usd" id="cash_usd" class="num-input"></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">저장</button>
         <button class="btn" type="button" data-close>취소</button>
       </div>
     </form>
@@ -139,8 +164,11 @@
 <script>
 const sellModal = document.getElementById('sellModal');
 const buyModal  = document.getElementById('buyModal');
+const cashModal = document.getElementById('cashModal');
+const MODALS = [sellModal, buyModal, cashModal];
 function open(m){ m.classList.add('open'); }
 function close(m){ m.classList.remove('open'); }
+function closeAll(){ MODALS.forEach(close); }
 
 const LOTS = {{ lots|tojson }};           // per-증권사 holdings: {user_id,ticker,platform_id,plat,qty,ccy,price}
 const qf = n => Number(n).toLocaleString(undefined,{maximumFractionDigits:4});
@@ -181,11 +209,18 @@ document.querySelectorAll('.buy-btn').forEach(b=>b.addEventListener('click',()=>
 }));
 document.getElementById('openBuy').addEventListener('click',()=>open(buyModal));
 
-document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>{
-  close(sellModal); close(buyModal);
+// 현금 수정 buttons (per member)
+document.querySelectorAll('.cash-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.getElementById('cash_user').value = b.dataset.user;
+  document.getElementById('cashWho').textContent = b.dataset.name;
+  document.getElementById('cash_krw').value = Number(b.dataset.krw||0).toLocaleString('en-US');
+  document.getElementById('cash_usd').value = Number(b.dataset.usd||0).toLocaleString('en-US');
+  open(cashModal);
 }));
-[sellModal, buyModal].forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) close(m); }));
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ close(sellModal); close(buyModal); } });
+
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click', closeAll));
+MODALS.forEach(m=>m.addEventListener('click',e=>{ if(e.target===m) close(m); }));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeAll(); });
 
 // thousands separators while typing
 function fmt(el){

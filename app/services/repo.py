@@ -129,7 +129,11 @@ def get_cash_amount(user_id: str, currency: str) -> float:
 
 def adjust_cash(user_id: str, currency: str, delta: float) -> None:
     """Add `delta` (may be negative) to a member's cash for `currency`."""
-    new_amount = get_cash_amount(user_id, currency) + delta
+    set_cash(user_id, currency, get_cash_amount(user_id, currency) + delta)
+
+
+def set_cash(user_id: str, currency: str, amount: float) -> None:
+    """Set a member's cash for `currency` to an absolute amount."""
     get_client().table("cash_balances").upsert(
-        {"user_id": user_id, "currency": currency, "amount": round(new_amount, 2)}
+        {"user_id": user_id, "currency": currency, "amount": round(float(amount), 2)}
     ).execute()
