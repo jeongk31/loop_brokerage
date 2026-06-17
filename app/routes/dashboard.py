@@ -9,6 +9,23 @@ from ..services import portfolio, repo
 bp = Blueprint("dashboard", __name__)
 
 
+def _combine_by_ticker(holdings):
+    """Combine a member's holdings by ticker (one row per stock, not per 증권사)."""
+    agg = {}
+    for h in holdings:
+        a = agg.get(h["ticker"])
+        if not a:
+            a = agg[h["ticker"]] = {"name": h["name"], "ticker": h["ticker"],
+                                    "quantity": 0.0, "value_krw": 0.0, "cost_krw": 0.0}
+        a["quantity"] += float(h["quantity"])
+        a["value_krw"] += h["value_krw"] or 0
+        a["cost_krw"] += h.get("cost_krw") or 0
+    for a in agg.values():
+        cost = a["cost_krw"]
+        a["return_pct"] = ((a["value_krw"] - cost) / cost * 100) if cost else None
+    return sorted(agg.values(), key=lambda x: -x["value_krw"])
+
+
 def _alloc_by_ticker(enriched, top=9):
     """[(name, value_krw)] grouped by ticker, top N + 기타."""
     agg, names = defaultdict(float), {}
@@ -54,7 +71,8 @@ def index():
             hs = by_owner.get(u["display_name"], [])
             val = sum(h["value_krw"] or 0 for h in hs)
             ucash = portfolio.load_cash([u["id"]], summ["fx"])
-            family_overview.append({"name": u["display_name"], "holdings": hs,
+            family_overview.append({"name": u["display_name"],
+                                    "holdings": _combine_by_ticker(hs),
                                     "value_krw": val, "cash": ucash,
                                     "total": val + ucash["total_krw"]})
 
