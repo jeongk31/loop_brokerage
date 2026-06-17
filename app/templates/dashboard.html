@@ -203,31 +203,23 @@ const pf = (v)=> (v==null||isNaN(v)) ? '—' : (v>=0?'+':'') + Number(v).toFixed
 const cls = v => (v||0) >= 0 ? 'up' : 'down';
 
 function renderHoldings(){
-  let rows = HOLD.filter(h => fPlat==='__all' || h.plat===fPlat);
+  // Always combined by ticker. Owner/증권사 buttons only NARROW the set —
+  // they never break it out per 증권사.
+  let rows = HOLD.filter(h => (fPlat==='__all' || h.plat===fPlat)
+                           && (fOwner==='__all' || h.owner===fOwner));
   const c = document.getElementById('holdContainer');
   if (!rows.length){ c.innerHTML = '<p class="muted">표시할 보유 종목이 없습니다.</p>'; return; }
-  let head, body;
 
-  if (fOwner === '__all') {                       // COMBINED by stock
-    const agg = {};
-    rows.forEach(h=>{
-      const a = agg[h.ticker] || (agg[h.ticker]={name:h.name,ticker:h.ticker,ccy:h.ccy,cur:h.cur,qty:0,cost:0,value:0,vkrw:0});
-      a.qty+=h.qty; a.cost+=h.qty*h.avg; a.value+=(h.value||0); a.vkrw+=(h.value_krw||0);
-    });
-    head = '<tr><th>종목</th><th class=num>보유수량</th><th class=num>평균단가</th><th class=num>현재가</th><th class=num>평가금액</th><th class=num>평가손익</th><th class=num>수익률</th></tr>';
-    body = Object.values(agg).sort((a,b)=>b.vkrw-a.vkrw).map(a=>{
-      const d=a.ccy==='KRW'?0:2, avg=a.qty?a.cost/a.qty:0, pl=a.value!=null?a.value-a.cost:null, ret=a.cost?pl/Math.abs(a.cost)*100:null;
-      return `<tr><td>${a.name} <span class=muted>${a.ticker}</span></td><td class=num>${nf(a.qty,4)}</td><td class=num>${nf(avg,d)}</td><td class=num>${nf(a.cur,d)}</td><td class=num>${nf(a.value,d)} <span class=muted>${a.ccy}</span></td><td class="num ${cls(pl)}">${sf(pl,d)}</td><td class="num ${cls(ret)}">${pf(ret)}</td></tr>`;
-    }).join('');
-  } else {                                        // per-owner detail
-    rows = rows.filter(h=>h.owner===fOwner);
-    head = `<tr><th>증권사</th><th>종목</th><th class=num>보유수량</th><th class=num>평균단가</th><th class=num>현재가</th><th class=num>평가금액</th><th class=num>평가손익</th><th class=num>수익률</th>${IS_ADMIN?'<th></th>':''}</tr>`;
-    body = rows.sort((a,b)=>(b.value_krw||0)-(a.value_krw||0)).map(h=>{
-      const d=h.ccy==='KRW'?0:2;
-      const act = IS_ADMIN ? `<td class=row-actions><a class=link href="/holdings/${h.id}/edit">수정</a> <form method=post action="/holdings/${h.id}/delete" style="display:inline" onsubmit="return confirm('삭제하시겠습니까?')"><button class="link danger" type=submit>삭제</button></form></td>` : '';
-      return `<tr><td>${h.plat}</td><td>${h.name} <span class=muted>${h.ticker}</span></td><td class=num>${nf(h.qty,4)}</td><td class=num>${nf(h.avg,d)}</td><td class=num>${nf(h.cur,d)}</td><td class=num>${nf(h.value,d)} <span class=muted>${h.ccy}</span></td><td class="num ${cls(h.pl)}">${sf(h.pl,d)}</td><td class="num ${cls(h.ret)}">${pf(h.ret)}</td>${act}</tr>`;
-    }).join('');
-  }
+  const agg = {};
+  rows.forEach(h=>{
+    const a = agg[h.ticker] || (agg[h.ticker]={name:h.name,ticker:h.ticker,ccy:h.ccy,cur:h.cur,qty:0,cost:0,value:0,vkrw:0});
+    a.qty+=h.qty; a.cost+=h.qty*h.avg; a.value+=(h.value||0); a.vkrw+=(h.value_krw||0);
+  });
+  const head = '<tr><th>종목</th><th class=num>보유수량</th><th class=num>평균단가</th><th class=num>현재가</th><th class=num>평가금액</th><th class=num>평가손익</th><th class=num>수익률</th></tr>';
+  const body = Object.values(agg).sort((a,b)=>b.vkrw-a.vkrw).map(a=>{
+    const d=a.ccy==='KRW'?0:2, avg=a.qty?a.cost/a.qty:0, pl=a.value!=null?a.value-a.cost:null, ret=a.cost?pl/Math.abs(a.cost)*100:null;
+    return `<tr><td>${a.name} <span class=muted>${a.ticker}</span></td><td class=num>${nf(a.qty,4)}</td><td class=num>${nf(avg,d)}</td><td class=num>${nf(a.cur,d)}</td><td class=num>${nf(a.value,d)} <span class=muted>${a.ccy}</span></td><td class="num ${cls(pl)}">${sf(pl,d)}</td><td class="num ${cls(ret)}">${pf(ret)}</td></tr>`;
+  }).join('');
   c.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 function wireSeg(id, set){
