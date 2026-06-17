@@ -20,15 +20,13 @@
       <tr>
         <td>{{ h.name }} <span class="muted">{{ h.ticker }}</span></td>
         <td class="num">{{ h.quantity|num(2) }}주</td>
-        <td class="num muted">{{ h.current_price|num(0 if h.currency=='KRW' else 2) }} {{ h.currency }}</td>
+        <td class="num muted">{{ h.cur|num(0 if h.ccy=='KRW' else 2) }} {{ h.ccy }}</td>
         <td class="num">₩{{ h.value_krw|num }}</td>
         <td class="num">
           <button class="link sell-btn" type="button"
                   data-user="{{ m.id }}" data-name-user="{{ m.name }}"
-                  data-platform="{{ h.platform_id or '' }}"
                   data-ticker="{{ h.ticker }}" data-stock="{{ h.name }}"
-                  data-qty="{{ h.quantity }}" data-ccy="{{ h.currency }}"
-                  data-price="{{ h.current_price if h.current_price is not none else '' }}">매도</button>
+                  data-ccy="{{ h.ccy }}">매도</button>
         </td>
       </tr>
       {% else %}
@@ -58,16 +56,19 @@
     <form method="post" action="{{ url_for('family.trade') }}" class="form" style="max-width:none">
       <input type="hidden" name="side" value="sell">
       <input type="hidden" name="user_id" id="sell_user">
-      <input type="hidden" name="platform_id" id="sell_platform">
       <input type="hidden" name="ticker" id="sell_ticker">
       <input type="hidden" name="name" id="sell_name">
       <input type="hidden" name="currency" id="sell_ccy">
       <input type="hidden" name="trade_date" value="{{ today }}">
-      <p class="muted" style="margin:0 0 4px">
-        <span id="sellStock" style="font-weight:650;color:var(--ink)"></span> ·
-        보유 <span id="sellHave"></span>주</p>
+      <p class="muted" style="margin:0 0 6px">
+        <span id="sellStock" style="font-weight:650;color:var(--ink)"></span> · 증권사별 보유:
+        <span id="sellBreakdown"></span></p>
+      <label>증권사 (이 계좌에서 매도)
+        <select name="platform_id" id="sell_platform" required></select>
+      </label>
       <div class="grid-2">
-        <label>매도 수량 <input type="text" inputmode="decimal" name="quantity" id="sell_qty" class="num-input" required></label>
+        <label>매도 수량 <span class="muted" id="sellMax"></span>
+          <input type="text" inputmode="decimal" name="quantity" id="sell_qty" class="num-input" required></label>
         <label>단가 (<span id="sellCcyLabel"></span>) <input type="text" inputmode="decimal" name="price" id="sell_price" class="num-input" required></label>
       </div>
       <div class="form-actions">
@@ -140,21 +141,37 @@ const buyModal  = document.getElementById('buyModal');
 function open(m){ m.classList.add('open'); }
 function close(m){ m.classList.remove('open'); }
 
+const LOTS = {{ lots|tojson }};           // per-증권사 holdings: {user_id,ticker,platform_id,plat,qty,ccy,price}
+const qf = n => Number(n).toLocaleString(undefined,{maximumFractionDigits:4});
+const platSel = document.getElementById('sell_platform');
+
+function syncSellLot(){
+  const o = platSel.options[platSel.selectedIndex];
+  if (!o) return;
+  document.getElementById('sellMax').textContent = '(보유 ' + qf(o.dataset.qty) + '주)';
+  document.getElementById('sell_price').value = o.dataset.price || '';
+}
+
 document.querySelectorAll('.sell-btn').forEach(b=>b.addEventListener('click',()=>{
   const d = b.dataset;
+  const lots = LOTS.filter(l => l.user_id===d.user && l.ticker===d.ticker && l.qty>0);
   document.getElementById('sell_user').value = d.user;
-  document.getElementById('sell_platform').value = d.platform;
   document.getElementById('sell_ticker').value = d.ticker;
   document.getElementById('sell_name').value = d.stock;
   document.getElementById('sell_ccy').value = d.ccy;
   document.getElementById('sellWho').textContent = d.nameUser;
   document.getElementById('sellStock').textContent = d.stock + ' (' + d.ticker + ')';
-  document.getElementById('sellHave').textContent = Number(d.qty).toLocaleString(undefined,{maximumFractionDigits:4});
+  document.getElementById('sellBreakdown').textContent =
+    lots.map(l => l.plat + ' ' + qf(l.qty) + '주').join(' · ');
   document.getElementById('sellCcyLabel').textContent = d.ccy;
+  platSel.innerHTML = lots.map(l =>
+    `<option value="${l.platform_id||''}" data-qty="${l.qty}" data-price="${l.price==null?'':l.price}">${l.plat} · ${qf(l.qty)}주</option>`
+  ).join('');
   document.getElementById('sell_qty').value = '';
-  document.getElementById('sell_price').value = d.price || '';
+  syncSellLot();
   open(sellModal);
 }));
+platSel.addEventListener('change', syncSellLot);
 
 // 매수 buttons (per member) + top button
 document.querySelectorAll('.buy-btn').forEach(b=>b.addEventListener('click',()=>{

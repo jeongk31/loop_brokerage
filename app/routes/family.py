@@ -36,17 +36,34 @@ def index():
     for h in enriched:
         by_owner_id.setdefault(h["user_id"], []).append(h)
 
-    cards = []
+    cards, lots = [], []
     for u in members:
         hs = by_owner_id.get(u["id"], [])
         cash = portfolio.load_cash([u["id"]], fx)
         val = sum(h["value_krw"] or 0 for h in hs)
-        cards.append({"id": u["id"], "name": u["display_name"], "holdings": hs,
+        # Collapse to one row per ticker; keep the per-증권사 lots for the sell modal.
+        agg = {}
+        for h in hs:
+            a = agg.get(h["ticker"])
+            if not a:
+                a = agg[h["ticker"]] = {"ticker": h["ticker"], "name": h["name"],
+                                        "ccy": h["currency"], "cur": h.get("current_price"),
+                                        "quantity": 0.0, "value_krw": 0.0}
+            a["quantity"] += float(h["quantity"])
+            a["value_krw"] += h["value_krw"] or 0
+            lots.append({"user_id": u["id"], "ticker": h["ticker"], "name": h["name"],
+                         "platform_id": h.get("platform_id"),
+                         "plat": (h.get("platforms") or {}).get("name", "기타"),
+                         "qty": float(h["quantity"]), "ccy": h["currency"],
+                         "price": h.get("current_price")})
+        cards.append({"id": u["id"], "name": u["display_name"],
+                      "holdings": sorted(agg.values(), key=lambda x: -x["value_krw"]),
                       "cash": cash, "value_krw": val, "total": val + cash["total_krw"]})
 
     return render_template(
         "family.html",
         cards=cards,
+        lots=lots,
         members=members,
         platforms=repo.list_platforms(),
         today=date.today().isoformat(),
