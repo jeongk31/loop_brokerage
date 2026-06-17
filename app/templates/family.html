@@ -67,9 +67,10 @@
         <select name="platform_id" id="sell_platform" required></select>
       </label>
       <div class="grid-2">
-        <label>매도 수량 <span class="muted" id="sellMax"></span>
+        <label><span>매도 수량 <span class="muted" id="sellMax"></span></span>
           <input type="text" inputmode="decimal" name="quantity" id="sell_qty" class="num-input" required></label>
-        <label>단가 (<span id="sellCcyLabel"></span>) <input type="text" inputmode="decimal" name="price" id="sell_price" class="num-input" required></label>
+        <label><span id="sellPriceLabel">단가</span>
+          <input type="text" inputmode="decimal" name="price" id="sell_price" class="num-input" required></label>
       </div>
       <div class="form-actions">
         <button class="btn btn-primary" type="submit">매도</button>
@@ -163,7 +164,7 @@ document.querySelectorAll('.sell-btn').forEach(b=>b.addEventListener('click',()=
   document.getElementById('sellStock').textContent = d.stock + ' (' + d.ticker + ')';
   document.getElementById('sellBreakdown').textContent =
     lots.map(l => l.plat + ' ' + qf(l.qty) + '주').join(' · ');
-  document.getElementById('sellCcyLabel').textContent = d.ccy;
+  document.getElementById('sellPriceLabel').textContent = '단가 (' + d.ccy + ')';
   platSel.innerHTML = lots.map(l =>
     `<option value="${l.platform_id||''}" data-qty="${l.qty}" data-price="${l.price==null?'':l.price}">${l.plat} · ${qf(l.qty)}주</option>`
   ).join('');
