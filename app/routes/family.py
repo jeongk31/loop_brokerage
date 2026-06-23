@@ -99,9 +99,7 @@ def trade():
     })
 
     # Settle cash: sell adds proceeds, buy subtracts cost (both net of fee).
-    gross = qty * price
-    delta = (gross - fee) if side == "sell" else -(gross + fee)
-    repo.adjust_cash(user_id, currency, delta)
+    repo.settle_trade_cash(user_id, side, qty, price, fee, currency)
 
     holdings.rederive()                               # keep holdings in sync
     verb = "매도" if side == "sell" else "매수"

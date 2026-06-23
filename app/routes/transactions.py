@@ -35,6 +35,25 @@ def _form_to_tx() -> dict:
     }
 
 
+def _settles_cash(tx: dict) -> bool:
+    """Whether this transaction moves the member's cash.
+
+    True for non-admin family members, mirroring the 가족 page 매수/매도 modal,
+    EXCEPT historical reconstruction entries (notes starting with '가족(실거래'),
+    whose cash is managed separately by the import scripts. Admin (이정규) trades
+    are intentionally left cash-free.
+    """
+    user = repo.get_user(tx["user_id"])
+    if not user or user["role"] == "admin":
+        return False
+    return not (tx.get("notes") or "").startswith("가족(실거래")
+
+
+def _cash_args(tx: dict) -> tuple:
+    return (tx["user_id"], tx["side"], float(tx["quantity"]),
+            float(tx["price"]), float(tx["fee"]), tx["currency"])
+
+
 @bp.route("/transactions")
 @login_required
 def list_view():
@@ -54,7 +73,10 @@ def list_view():
 @admin_required
 def new():
     if request.method == "POST":
-        repo.create_transaction(_form_to_tx())
+        tx = _form_to_tx()
+        repo.create_transaction(tx)
+        if _settles_cash(tx):                     # deduct/add cash for family members
+            repo.settle_trade_cash(*_cash_args(tx))
         holdings.rederive()                       # keep holdings in sync
         flash("거래를 추가했습니다.", "success")
         return redirect(url_for("transactions.list_view"))
@@ -74,7 +96,12 @@ def edit(tx_id):
     if not tx:
         abort(404)
     if request.method == "POST":
-        repo.update_transaction(tx_id, _form_to_tx())
+        new_tx = _form_to_tx()
+        if _settles_cash(tx):                     # undo the old trade's cash effect
+            repo.reverse_trade_cash(*_cash_args(tx))
+        repo.update_transaction(tx_id, new_tx)
+        if _settles_cash(new_tx):                 # apply the edited trade's cash effect
+            repo.settle_trade_cash(*_cash_args(new_tx))
         holdings.rederive()
         flash("거래를 수정했습니다.", "success")
         return redirect(url_for("transactions.list_view"))
@@ -89,6 +116,9 @@ def edit(tx_id):
 @bp.route("/transactions/<tx_id>/delete", methods=["POST"])
 @admin_required
 def delete(tx_id):
+    tx = repo.get_transaction(tx_id, current_user())
+    if tx and _settles_cash(tx):                  # refund the deleted trade's cash
+        repo.reverse_trade_cash(*_cash_args(tx))
     repo.delete_transaction(tx_id)
     holdings.rederive()
     flash("거래를 삭제했습니다.", "success")

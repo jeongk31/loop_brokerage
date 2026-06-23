@@ -38,6 +38,12 @@ def list_users() -> list[dict]:
     )
 
 
+def get_user(user_id: str) -> dict | None:
+    rows = (get_client().table("users").select("id, display_name, role")
+            .eq("id", user_id).execute().data or [])
+    return rows[0] if rows else None
+
+
 # --- holdings ---------------------------------------------------------------
 
 _HOLDING_SELECT = "*, platforms(name), users(display_name)"
@@ -130,6 +136,24 @@ def get_cash_amount(user_id: str, currency: str) -> float:
 def adjust_cash(user_id: str, currency: str, delta: float) -> None:
     """Add `delta` (may be negative) to a member's cash for `currency`."""
     set_cash(user_id, currency, get_cash_amount(user_id, currency) + delta)
+
+
+def _trade_delta(side: str, qty: float, price: float, fee: float) -> float:
+    """Cash change a trade causes: a sell adds proceeds, a buy subtracts cost (net of fee)."""
+    gross = qty * price
+    return (gross - fee) if side == "sell" else -(gross + fee)
+
+
+def settle_trade_cash(user_id: str, side: str, qty: float, price: float,
+                      fee: float, currency: str) -> None:
+    """Apply a trade's cash effect to the member's balance."""
+    adjust_cash(user_id, currency, _trade_delta(side, qty, price, fee))
+
+
+def reverse_trade_cash(user_id: str, side: str, qty: float, price: float,
+                       fee: float, currency: str) -> None:
+    """Undo a trade's cash effect (for edit/delete of a settled trade)."""
+    adjust_cash(user_id, currency, -_trade_delta(side, qty, price, fee))
 
 
 def set_cash(user_id: str, currency: str, amount: float) -> None:
