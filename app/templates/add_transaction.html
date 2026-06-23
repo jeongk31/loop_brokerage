@@ -59,18 +59,18 @@
 
   <div class="grid-2">
     <label>수량
-      <input type="number" name="quantity" step="any" min="0" required
+      <input type="text" name="quantity" inputmode="decimal" required
              value="{{ tx.quantity if tx else '' }}">
     </label>
     <label>단가
-      <input type="number" name="price" step="any" min="0" required
+      <input type="text" name="price" inputmode="decimal" required
              value="{{ tx.price if tx else '' }}">
     </label>
   </div>
 
   <div class="grid-2">
     <label>수수료
-      <input type="number" name="fee" step="any" min="0"
+      <input type="text" name="fee" inputmode="decimal"
              value="{{ tx.fee if tx else '0' }}">
     </label>
     <label>통화

@@ -54,6 +54,14 @@ def _cash_args(tx: dict) -> tuple:
             float(tx["price"]), float(tx["fee"]), tx["currency"])
 
 
+def _is_family_sell(tx: dict) -> bool:
+    """A 매도 for a non-admin member — only allowed via the 가족 tab, not here."""
+    if tx["side"] != "sell":
+        return False
+    user = repo.get_user(tx["user_id"])
+    return bool(user and user["role"] != "admin")
+
+
 @bp.route("/transactions")
 @login_required
 def list_view():
@@ -74,6 +82,9 @@ def list_view():
 def new():
     if request.method == "POST":
         tx = _form_to_tx()
+        if _is_family_sell(tx):
+            flash("가족 구성원의 매도는 '가족' 탭에서만 가능합니다.", "error")
+            return redirect(url_for("transactions.list_view"))
         repo.create_transaction(tx)
         if _settles_cash(tx):                     # deduct/add cash for family members
             repo.settle_trade_cash(*_cash_args(tx))
@@ -97,6 +108,9 @@ def edit(tx_id):
         abort(404)
     if request.method == "POST":
         new_tx = _form_to_tx()
+        if _is_family_sell(new_tx):
+            flash("가족 구성원의 매도는 '가족' 탭에서만 가능합니다.", "error")
+            return redirect(url_for("transactions.list_view"))
         if _settles_cash(tx):                     # undo the old trade's cash effect
             repo.reverse_trade_cash(*_cash_args(tx))
         repo.update_transaction(tx_id, new_tx)

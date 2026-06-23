@@ -33,7 +33,14 @@
         <td class="num">{% if t.currency == 'USD' %}${{ "{:,.2f}".format(t.price|float) }}{% else %}{{ "{:,.0f}".format(t.price|float) }}원{% endif %}</td>
         {% if is_admin %}
         <td class="row-actions">
-          <a class="link" href="{{ url_for('transactions.edit', tx_id=t.id) }}">수정</a>
+          <button class="link tx-edit" type="button"
+                  data-action="{{ url_for('transactions.edit', tx_id=t.id) }}"
+                  data-user="{{ t.user_id }}" data-platform="{{ t.platform_id or '' }}"
+                  data-ticker="{{ t.ticker }}" data-name="{{ t.name }}"
+                  data-side="{{ t.side }}" data-date="{{ t.trade_date }}"
+                  data-qty="{{ t.quantity }}" data-price="{{ t.price }}"
+                  data-fee="{{ t.fee }}" data-ccy="{{ t.currency }}"
+                  data-notes="{{ t.notes or '' }}">수정</button>
           <form method="post" action="{{ url_for('transactions.delete', tx_id=t.id) }}"
                 onsubmit="return confirm('삭제하시겠습니까?');">
             <button class="link danger" type="submit">삭제</button>
@@ -53,18 +60,18 @@
 <div class="modal-overlay" id="txModal">
   <div class="modal">
     <div class="modal-head">
-      <h2 style="margin:0;font-size:1.15rem">거래 추가</h2>
+      <h2 style="margin:0;font-size:1.15rem" id="txTitle">거래 추가</h2>
       <button class="modal-close" type="button" id="closeTx">✕</button>
     </div>
-    <form method="post" action="{{ url_for('transactions.new') }}" class="form" style="max-width:none">
+    <form method="post" action="{{ url_for('transactions.new') }}" class="form" style="max-width:none" id="txForm">
       <div class="grid-2">
         <label>소유자
-          <select name="user_id" required>
-            {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+          <select name="user_id" id="tx_user" required>
+            {% for u in users %}<option value="{{ u.id }}" data-role="{{ u.role }}">{{ u.display_name }}</option>{% endfor %}
           </select>
         </label>
         <label>증권사
-          <select name="platform_id">
+          <select name="platform_id" id="tx_platform">
             <option value="">선택 안 함</option>
             {% for p in platforms %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
           </select>
@@ -84,23 +91,24 @@
 
       <div class="grid-2">
         <label>구분
-          <select name="side" required><option value="buy">매수</option><option value="sell">매도</option></select>
+          <select name="side" id="tx_side" required><option value="buy">매수</option><option value="sell">매도</option></select>
         </label>
-        <label>거래일 <input type="date" name="trade_date" value="{{ today }}" required></label>
+        <label>거래일 <input type="date" name="trade_date" id="tx_date" value="{{ today }}" required></label>
+      </div>
+      <p class="muted" id="sellHint" style="margin:-4px 0 0;display:none">매도는 본인(관리자) 계좌만 가능합니다. 가족 매도는 ‘가족’ 탭에서 진행하세요.</p>
+      <div class="grid-2">
+        <label>수량 <input type="text" inputmode="decimal" name="quantity" id="tx_qty" class="num-input" required></label>
+        <label>단가 <input type="text" inputmode="decimal" name="price" id="tx_price" class="num-input" required></label>
       </div>
       <div class="grid-2">
-        <label>수량 <input type="text" inputmode="decimal" name="quantity" class="num-input" required></label>
-        <label>단가 <input type="text" inputmode="numeric" name="price" class="num-input" required></label>
-      </div>
-      <div class="grid-2">
-        <label>수수료 <input type="text" inputmode="numeric" name="fee" class="num-input" value="0"></label>
+        <label>수수료 <input type="text" inputmode="decimal" name="fee" id="tx_fee" class="num-input" value="0"></label>
         <label>통화
-          <select name="currency"><option value="KRW">KRW</option><option value="USD">USD</option></select>
+          <select name="currency" id="tx_ccy"><option value="KRW">KRW</option><option value="USD">USD</option></select>
         </label>
       </div>
-      <label>메모 <textarea name="notes" rows="2"></textarea></label>
+      <label>메모 <textarea name="notes" id="tx_notes" rows="2"></textarea></label>
       <div class="form-actions">
-        <button class="btn btn-primary" type="submit">추가</button>
+        <button class="btn btn-primary" type="submit" id="txSubmit">추가</button>
         <button class="btn" type="button" id="cancelTx">취소</button>
       </div>
     </form>
@@ -112,14 +120,14 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/autocomplete.js') }}"></script>
 <script>
+const NEW_ACTION = "{{ url_for('transactions.new') }}";
+const TODAY = "{{ today }}";
 const m = document.getElementById('txModal');
+const txForm = document.getElementById('txForm');
+const txUser = document.getElementById('tx_user');
+const txSide = document.getElementById('tx_side');
 function openM(){ if(m) m.classList.add('open'); }
 function closeM(){ if(m) m.classList.remove('open'); }
-document.getElementById('openTx')?.addEventListener('click', openM);
-document.getElementById('closeTx')?.addEventListener('click', closeM);
-document.getElementById('cancelTx')?.addEventListener('click', closeM);
-m?.addEventListener('click', e=>{ if(e.target===m) closeM(); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
 
 // thousands separators while typing
 function fmt(el){
@@ -130,5 +138,63 @@ function fmt(el){
   el.value = Number(i).toLocaleString('en-US') + (d!==undefined ? '.'+d : '');
 }
 document.querySelectorAll('.num-input').forEach(el=>el.addEventListener('input',()=>fmt(el)));
+
+// 매도(sell) is admin-only here; family sells go through the 가족 tab.
+function applySellRule(){
+  const sell = txSide.value === 'sell';
+  document.getElementById('sellHint').style.display = sell ? 'block' : 'none';
+  let adminOpt = null, selAdmin = false;
+  Array.from(txUser.options).forEach(o=>{
+    const admin = o.dataset.role === 'admin';
+    o.hidden = sell && !admin;
+    o.disabled = sell && !admin;
+    if(admin) adminOpt = o;
+    if(o.selected && admin) selAdmin = true;
+  });
+  if(sell && adminOpt && !selAdmin) txUser.value = adminOpt.value;
+}
+txSide.addEventListener('change', applySellRule);
+
+function openAdd(){
+  txForm.reset();
+  txForm.action = NEW_ACTION;
+  document.getElementById('txTitle').textContent = '거래 추가';
+  document.getElementById('txSubmit').textContent = '추가';
+  document.getElementById('tx_date').value = TODAY;
+  document.getElementById('tx_fee').value = '0';
+  document.getElementById('ticker-search').value = '';
+  applySellRule();
+  openM();
+}
+
+function openEdit(b){
+  const d = b.dataset;
+  txForm.reset();
+  txForm.action = d.action;
+  document.getElementById('txTitle').textContent = '거래 수정';
+  document.getElementById('txSubmit').textContent = '저장';
+  txUser.value = d.user;
+  document.getElementById('tx_platform').value = d.platform;
+  document.getElementById('ticker').value = d.ticker;
+  document.getElementById('name').value = d.name;
+  txSide.value = d.side;
+  document.getElementById('tx_date').value = d.date;
+  document.getElementById('tx_qty').value = d.qty;
+  document.getElementById('tx_price').value = d.price;
+  document.getElementById('tx_fee').value = d.fee;
+  document.getElementById('tx_ccy').value = d.ccy;
+  document.getElementById('tx_notes').value = d.notes;
+  document.getElementById('ticker-search').value = '';
+  ['tx_qty','tx_price','tx_fee'].forEach(id=>fmt(document.getElementById(id)));
+  applySellRule();
+  openM();
+}
+
+document.getElementById('openTx')?.addEventListener('click', openAdd);
+document.querySelectorAll('.tx-edit').forEach(b=>b.addEventListener('click', ()=>openEdit(b)));
+document.getElementById('closeTx')?.addEventListener('click', closeM);
+document.getElementById('cancelTx')?.addEventListener('click', closeM);
+m?.addEventListener('click', e=>{ if(e.target===m) closeM(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
 </script>
 {% endblock %}
