@@ -53,6 +53,18 @@ def regenerate_code(user_id):
     return redirect(url_for("settings.index"))
 
 
+@bp.route("/settings/users/<user_id>/set-code", methods=["POST"])
+@admin_required
+def set_code(user_id):
+    code = (request.form.get("code") or "").strip()
+    if len(code) < 4:
+        flash("로그인 코드는 4자 이상이어야 합니다.", "error")
+        return redirect(url_for("settings.index"))
+    repo.update_user(user_id, {"code_hash": hash_code(code)})
+    flash("로그인 코드를 설정했습니다.", "success")
+    return redirect(url_for("settings.index"))
+
+
 @bp.route("/settings/platforms/new", methods=["POST"])
 @admin_required
 def new_platform():

@@ -7,7 +7,7 @@
   <div class="section-head"><h2>가족 구성원</h2></div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>이름</th><th>권한</th><th>로그인 코드</th></tr></thead>
+      <thead><tr><th>이름</th><th>권한</th><th>로그인 코드 설정</th></tr></thead>
       <tbody>
         {% for u in users %}
         <tr>
@@ -19,9 +19,17 @@
           </td>
           <td>{{ '관리자' if u.role == 'admin' else '뷰어' }}</td>
           <td>
+            <form method="post" action="{{ url_for('settings.set_code', user_id=u.id) }}"
+                  class="inline-form"
+                  onsubmit="return confirm('{{ u.display_name }}의 로그인 코드를 변경하면 기존 코드는 사용할 수 없습니다. 계속할까요?');">
+              <input type="text" name="code" placeholder="새 코드 입력" autocomplete="off"
+                     minlength="4" required style="max-width:160px">
+              <button class="link" type="submit">설정</button>
+            </form>
             <form method="post" action="{{ url_for('settings.regenerate_code', user_id=u.id) }}"
-                  onsubmit="return confirm('새 코드를 생성하면 기존 코드는 사용할 수 없습니다. 계속할까요?');">
-              <button class="link" type="submit">코드 재발급</button>
+                  class="inline-form" style="margin-top:4px"
+                  onsubmit="return confirm('무작위 코드를 새로 생성하면 기존 코드는 사용할 수 없습니다. 계속할까요?');">
+              <button class="link" type="submit">또는 무작위 재발급</button>
             </form>
           </td>
         </tr>
@@ -29,7 +37,7 @@
       </tbody>
     </table>
   </div>
-  <p class="muted">코드는 해시로만 저장되어 다시 볼 수 없습니다. 재발급 시 새 코드가 한 번만 표시됩니다.</p>
+  <p class="muted">코드는 해시로만 저장되어 다시 볼 수 없습니다. 원하는 코드를 직접 입력해 설정하거나, 무작위 코드를 발급받을 수 있습니다.</p>
 </section>
 
 <section class="section">
