@@ -15,6 +15,19 @@ def create_app() -> Flask:
     def _make_session_permanent():
         session.permanent = True
 
+    # Service worker must be served from the root so its scope covers the whole
+    # app (a worker at /static/ would only control /static/). Enables PWA install.
+    from flask import send_from_directory
+    import os
+
+    @app.route("/sw.js")
+    def _service_worker():
+        resp = send_from_directory(os.path.join(app.root_path, "static"), "sw.js")
+        resp.headers["Content-Type"] = "application/javascript"
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["Service-Worker-Allowed"] = "/"
+        return resp
+
     # Jinja number formatting (None-safe).
     def _num(v, dec=0):
         if v is None:
