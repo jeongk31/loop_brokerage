@@ -36,6 +36,9 @@ h1, h2 { letter-spacing: -0.01em; }
 .topbar {
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   padding: 0 22px; height: 60px;
+  /* Push content below the phone status bar / notch (PWA standalone). */
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(60px + env(safe-area-inset-top, 0px));
   background: var(--nav); color: var(--nav-ink);
   position: sticky; top: 0; z-index: 20;
 }
@@ -245,7 +248,8 @@ tbody tr + tr td { border-top: 1px solid var(--line); }
 /* ---- Mobile ---- */
 @media (max-width: 640px) {
   body { font-size: 14px; }
-  .topbar { height: auto; padding: 10px 14px; gap: 8px 10px; flex-wrap: wrap; }
+  .topbar { height: auto; padding: 10px 14px; gap: 8px 10px; flex-wrap: wrap;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
   .brand { order: 1; font-size: 1rem; }
   .user { order: 2; margin-left: auto; }
   .seg-dark { order: 3; }
